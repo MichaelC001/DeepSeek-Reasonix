@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -100,6 +101,9 @@ func Run(args []string, version string) int {
 	case "doctor":
 		configureCLIThemeFromConfigNoProbe()
 		return doctorCommand(rest, version)
+	case "migrate-home":
+		configureCLIThemeFromConfigNoProbe()
+		return migrateHomeCommand(rest)
 	case "review":
 		configureCLIThemeFromConfigNoProbe()
 		return reviewCommand(rest)
@@ -1698,6 +1702,84 @@ func welcomeShouldPromptMissingKeys(src string, cfgErr error) bool {
 
 func usage() {
 	fmt.Print(i18n.M.UsageBody)
+}
+
+func migrateHomeCommand(args []string) int {
+	fs := flag.NewFlagSet("migrate-home", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	apply := fs.Bool("apply", false, "apply the migration; without this flag only preview")
+	from := fs.String("from", "", "source Reasonix user root")
+	to := fs.String("to", "", "destination Reasonix user root")
+	jsonOut := fs.Bool("json", false, "print the migration report as JSON")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		migrateHomeUsage()
+		return 2
+	}
+	report, err := config.MigrateHome(config.HomeMigrationOptions{
+		From:  *from,
+		To:    *to,
+		Apply: *apply,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, i18n.M.ErrorPrefix, err)
+		return 1
+	}
+	if *jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(report); err != nil {
+			fmt.Fprintln(os.Stderr, i18n.M.ErrorPrefix, err)
+			return 1
+		}
+		return 0
+	}
+	printHomeMigrationReport(report)
+	return 0
+}
+
+func migrateHomeUsage() {
+	fmt.Print(`Usage:
+  reasonix migrate-home [--apply] [--from PATH --to PATH] [--json]
+`)
+}
+
+func printHomeMigrationReport(r *config.HomeMigrationReport) {
+	if r == nil {
+		return
+	}
+	if r.Apply {
+		fmt.Println("Reasonix home migration")
+	} else {
+		fmt.Println("Reasonix home migration preview")
+	}
+	fmt.Println("from:", displayPath(r.From))
+	fmt.Println("to:  ", displayPath(r.To))
+	if r.AlreadyMigrated {
+		fmt.Println("status: already migrated")
+		return
+	}
+	if !r.Needed {
+		fmt.Println("status: nothing to migrate")
+		for _, w := range r.Warnings {
+			fmt.Println("warning:", w)
+		}
+		return
+	}
+	fmt.Printf("files copied: %d, dirs created: %d, skipped: %d\n", r.FilesCopied, r.DirsCreated, r.FilesSkipped)
+	fmt.Printf("config merges: %d, credential merges: %d\n", r.ConfigsMerged, r.CredentialsMerged)
+	fmt.Printf("renamed session conflicts: %d, archived conflicts: %d\n", r.SessionConflictsRenamed, r.ConflictsArchived)
+	if r.Apply {
+		fmt.Println("marker:", displayPath(r.Marker))
+		fmt.Println("old root left untouched")
+	} else {
+		fmt.Println("dry-run only; run with --apply to write the destination and marker")
+	}
+	for _, w := range r.Warnings {
+		fmt.Println("warning:", w)
+	}
 }
 
 func configCommand(args []string) int {

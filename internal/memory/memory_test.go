@@ -69,6 +69,34 @@ func TestDiscoverPrecedenceOrder(t *testing.T) {
 	}
 }
 
+func TestLoadSupportsMultipleUserDocRootsAndSeparateStoreRoot(t *testing.T) {
+	oldUser := t.TempDir()
+	activeUser := t.TempDir()
+	storeRoot := t.TempDir()
+	proj := t.TempDir()
+	mustWrite(t, filepath.Join(oldUser, "REASONIX.md"), "OLD USER")
+	mustWrite(t, filepath.Join(activeUser, "AGENTS.md"), "ACTIVE USER")
+
+	set := Load(Options{
+		CWD:      proj,
+		UserDir:  activeUser,
+		UserDirs: []string{oldUser, activeUser},
+		StoreDir: storeRoot,
+	})
+	if len(set.Docs) != 2 {
+		t.Fatalf("Docs = %d, want 2", len(set.Docs))
+	}
+	if set.Docs[0].Path != filepath.Join(oldUser, "REASONIX.md") || set.Docs[1].Path != filepath.Join(activeUser, "AGENTS.md") {
+		t.Fatalf("unexpected doc order: %+v", set.Docs)
+	}
+	if got := set.DocPath(ScopeUser); got != filepath.Join(activeUser, "AGENTS.md") {
+		t.Fatalf("DocPath(ScopeUser) = %q, want active doc", got)
+	}
+	if !strings.HasPrefix(set.Store.Dir, filepath.Join(storeRoot, "projects")) {
+		t.Fatalf("Store.Dir = %q, want under %q", set.Store.Dir, storeRoot)
+	}
+}
+
 // TestImportResolution checks "@path" inlining, including a relative import.
 func TestImportResolution(t *testing.T) {
 	proj := t.TempDir()

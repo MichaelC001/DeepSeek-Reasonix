@@ -183,7 +183,12 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// durable, cache-stable prefix every turn reuses, so memory costs nothing per
 	// turn. Mid-session changes never touch this prefix — they ride the
 	// controller's transient turn-injection and fold in on the next session.
-	mem := memory.Load(memory.Options{CWD: root, UserDir: config.MemoryUserDir()})
+	mem := memory.Load(memory.Options{
+		CWD:      root,
+		UserDir:  config.UserConfigRoot(),
+		UserDirs: config.UserMemoryDirs(),
+		StoreDir: config.MemoryUserDir(),
+	})
 	projectChecks := instruction.ExtractHostChecks(mem.Docs)
 	sysPrompt = memory.Compose(sysPrompt, mem)
 

@@ -22,10 +22,14 @@
 ## Configuration
 
 Resolution order: **flag > `./reasonix.toml` > the user config file >
-built-in defaults**. The user config lives in your OS config dir: `~/.config/reasonix/`
-on Linux, `~/Library/Application Support/reasonix/` on macOS, `%AppData%\reasonix\` on
-Windows. Secrets come from the environment via `api_key_env` and are
-never stored in config files.
+built-in defaults**. Set `REASONIX_HOME` to choose the user root explicitly;
+otherwise the user config lives in your OS config dir: `~/.config/reasonix/` on
+Linux, `~/Library/Application Support/reasonix/` on macOS for existing installs,
+and `%AppData%\reasonix\` on Windows. Fresh macOS installs use
+`~/.config/reasonix`. Secrets come from the environment via `api_key_env` and are
+never stored in config files. To fully move an existing macOS install, preview
+with `reasonix migrate-home` and apply with `reasonix migrate-home --apply`; see
+[macOS home directory migration](./HOME_MIGRATION.md) for the full steps.
 
 ```toml
 default_model = "deepseek-flash"   # executor; set [agent].planner_model to add a planner
@@ -204,7 +208,7 @@ discards the current context without saving it. `/tree` shows saved conversation
 branches, `/branch [name]` forks the current conversation tip, `/branch <turn>
 [name]` forks from an earlier checkpointed turn, and `/switch <id|name>` loads
 another branch. **Custom commands** are Markdown files under `.reasonix/commands/`
-(project) or `~/.config/reasonix/commands/` (user) — `review.md` becomes
+(project) or `$REASONIX_HOME/commands` (user) — `review.md` becomes
 `/review`, a subdirectory namespaces it (`git/commit.md` → `/git:commit`). The
 body is a prompt template; invoking the command sends it as a turn.
 

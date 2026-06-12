@@ -118,8 +118,8 @@ reasonix run "&lt;task&gt;"     <span class="c"># autonomous run, honours deny r
       <p><span class="l-en"><code>/branch [name]</code> forks the current conversation tip, <code>/switch &lt;id|name&gt;</code> loads another branch. Custom commands are Markdown files under <code>.reasonix/commands/</code>.</span><span class="l-zh"><code>/branch [name]</code> 从当前会话尖端分叉,<code>/switch &lt;id|name&gt;</code> 加载另一条分支。自定义命令是 <code>.reasonix/commands/</code> 下的 Markdown 文件。</span></p>
 
       <h2 id="configfile"><span class="l-en">Config file</span><span class="l-zh">配置文件</span></h2>
-      <p><span class="l-en">Resolution order: flag &gt; <code>./reasonix.toml</code> &gt; <code>~/.config/reasonix/config.toml</code> &gt; built-in defaults.</span><span class="l-zh">解析顺序:flag &gt; <code>./reasonix.toml</code> &gt; <code>~/.config/reasonix/config.toml</code> &gt; 内置默认值。</span></p>
-      <div class="codeblock"><span class="c"># ~/.config/reasonix/config.toml</span>
+      <p><span class="l-en">Resolution order: flag &gt; <code>./reasonix.toml</code> &gt; <code>$REASONIX_HOME/config.toml</code> &gt; built-in defaults; macOS fresh installs use <code>~/.config/reasonix</code>.</span><span class="l-zh">解析顺序:flag &gt; <code>./reasonix.toml</code> &gt; <code>$REASONIX_HOME/config.toml</code> &gt; 内置默认值;macOS 新安装使用 <code>~/.config/reasonix</code>。</span></p>
+      <div class="codeblock"><span class="c"># $REASONIX_HOME/config.toml</span>
 default_model = "deepseek-flash"
 
 [agent]

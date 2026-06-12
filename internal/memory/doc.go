@@ -63,17 +63,19 @@ type Source struct {
 }
 
 // discoverDocs walks the memory hierarchy and returns the loaded sources in
-// ascending precedence order: user-global first, then ancestors from the
+// ascending precedence order: user-global roots first, then ancestors from the
 // outermost down, then the project root, then project-local. Later sources are
 // more specific, so a model reading top-to-bottom sees the most local guidance
 // last. Discovery is best-effort: missing or unreadable files are skipped.
-func discoverDocs(cwd, userDir string) []Source {
+func discoverDocs(cwd string, userDirs []string) []Source {
 	var out []Source
 	seen := docSeen{}
 
 	// 1. User-global memory (lowest precedence).
-	if userDir != "" {
-		out = append(out, loadFrom(userDir, docNames, ScopeUser, &seen)...)
+	for _, userDir := range userDirs {
+		if userDir != "" {
+			out = append(out, loadFrom(userDir, docNames, ScopeUser, &seen)...)
+		}
 	}
 
 	// 2. Ancestor chain, outermost → project root. The project root (cwd) is

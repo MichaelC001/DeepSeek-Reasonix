@@ -371,6 +371,7 @@ Usage:
   reasonix config auto-plan [off|on]                    configure automatic plan mode
   reasonix mcp <add|remove|list>                        manage MCP servers in reasonix.toml
   reasonix doctor [--json]                              print redacted local diagnostics
+  reasonix migrate-home [--apply]                       migrate all user data to the current documented home
   reasonix bot start|doctor|weixin-login                multi-channel IM bot gateway
   reasonix upgrade [--check] [--force]                   self-update to the latest release
   reasonix version
@@ -384,7 +385,7 @@ Examples:
   echo "explain this code" | reasonix run
 
 Configuration:
-  Resolution: flag > ./reasonix.toml > ~/.config/reasonix/config.toml > built-in defaults
+  Resolution: flag > ./reasonix.toml > $REASONIX_HOME/config.toml > built-in defaults
   Secrets come from the environment via api_key_env (e.g. DEEPSEEK_API_KEY).
   Run 'reasonix setup' to scaffold a config; see docs/SPEC.md.
 `,

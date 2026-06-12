@@ -113,17 +113,23 @@ api_key_env = "DEEPSEEK_API_KEY"
 ```
 
 Resolution order is **flag > `./reasonix.toml` > the user config file >
-built-in defaults**; the user file lives in your OS config dir — `~/.config/reasonix/`
-on Linux, `~/Library/Application Support/reasonix/` on macOS, `%AppData%\reasonix\` on
-Windows. Secrets come from the environment via `api_key_env` and are
-never written to config files. Permissions, the sandbox, plugins (MCP), slash
-commands, `@` references, and two-model setup are all in the
+built-in defaults**. Set `REASONIX_HOME` to choose the user root explicitly;
+otherwise the user file lives in your OS config dir: `~/.config/reasonix/` on
+Linux, `~/Library/Application Support/reasonix/` on macOS for existing installs,
+and `%AppData%\reasonix\` on Windows. Fresh macOS installs use
+`~/.config/reasonix`. Secrets come from the environment via `api_key_env` and are
+never written to config files. To fully move an existing macOS install, preview
+with `reasonix migrate-home` and apply with `reasonix migrate-home --apply`.
+Permissions, the sandbox, plugins (MCP), slash commands, `@` references, and
+two-model setup are all in the
 **[Guide](./docs/GUIDE.md)**.
 
 ## Documentation
 
 - **[Guide](./docs/GUIDE.md)** — configuration, permissions & sandbox, plugins
   (MCP), slash commands, `@` references, two-model collaboration.
+- **[macOS home directory migration](./docs/HOME_MIGRATION.md)** — fully move
+  an old `~/Library/Application Support/reasonix` install to `~/.config/reasonix`.
 - **[Spec](./docs/SPEC.md)** — engineering contract: architecture, registries,
   data types, and roadmap.
 - **[Migrating from 0.x](./docs/MIGRATING.md)** — moving from the legacy

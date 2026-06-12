@@ -27,7 +27,7 @@ func loadDotEnvForRoot(root string) {
 		dotEnvPath = filepath.Join(root, ".env")
 	}
 	loadDotEnvFile(dotEnvPath)
-	if p := UserCredentialsPath(); p != "" {
+	for _, p := range UserCredentialsPaths() {
 		loadDotEnvFile(p)
 	}
 	if home, err := os.UserHomeDir(); err == nil {

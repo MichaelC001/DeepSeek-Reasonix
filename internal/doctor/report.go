@@ -118,6 +118,9 @@ func Collect(opts Options) Report {
 			cfg = config.Default()
 		}
 	}
+	for _, w := range config.UserPathWarnings() {
+		warnings = append(warnings, redactHome(w))
+	}
 	cwd, _ := os.Getwd()
 	report := Report{
 		Version: opts.Version,

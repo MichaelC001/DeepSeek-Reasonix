@@ -372,6 +372,7 @@ var Chinese = Messages{
   reasonix config auto-plan [off|on]                    配置自动计划模式
   reasonix mcp <add|remove|list>                        管理 reasonix.toml 里的 MCP 服务器
   reasonix doctor [--json]                              输出脱敏的本地诊断信息
+  reasonix migrate-home [--apply]                       将全部用户数据迁移到当前文档化主目录
   reasonix bot start|doctor|weixin-login                多渠道 IM bot 网关
   reasonix upgrade [--check] [--force]                   自更新到最新版本
   reasonix version
@@ -385,7 +386,7 @@ var Chinese = Messages{
   echo "解释这段代码" | reasonix run
 
 配置：
-  优先级：flag > ./reasonix.toml > ~/.config/reasonix/config.toml > 内置默认值
+  优先级：flag > ./reasonix.toml > $REASONIX_HOME/config.toml > 内置默认值
   密钥通过 api_key_env 从环境变量注入（如 DEEPSEEK_API_KEY）。
   运行 'reasonix setup' 生成配置；详见 docs/SPEC.md。
 `,

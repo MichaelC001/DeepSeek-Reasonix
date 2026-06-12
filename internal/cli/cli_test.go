@@ -248,6 +248,51 @@ func TestConfigAutoPlanLocalCreatesMinimalProjectOverride(t *testing.T) {
 	}
 }
 
+func TestMigrateHomeCommandDryRunDoesNotWriteMarker(t *testing.T) {
+	isolateCLIConfigHome(t)
+	root := t.TempDir()
+	from := filepath.Join(root, "old")
+	to := filepath.Join(root, "new")
+	writeCLITestFile(t, filepath.Join(from, "sessions", "chat.jsonl"), "old session\n")
+
+	out := captureStdout(t, func() {
+		if rc := Run([]string{"migrate-home", "--from", from, "--to", to}, "test-version"); rc != 0 {
+			t.Fatalf("migrate-home dry-run rc = %d, want 0", rc)
+		}
+	})
+
+	if !strings.Contains(out, "Reasonix home migration preview") || !strings.Contains(out, "dry-run only") {
+		t.Fatalf("dry-run output = %q", out)
+	}
+	if _, err := os.Stat(config.HomeMigrationMarkerPath(to)); !os.IsNotExist(err) {
+		t.Fatalf("dry-run wrote marker, stat err=%v", err)
+	}
+}
+
+func TestMigrateHomeCommandApplyWritesMarker(t *testing.T) {
+	isolateCLIConfigHome(t)
+	root := t.TempDir()
+	from := filepath.Join(root, "old")
+	to := filepath.Join(root, "new")
+	writeCLITestFile(t, filepath.Join(from, "sessions", "chat.jsonl"), "old session\n")
+
+	out := captureStdout(t, func() {
+		if rc := Run([]string{"migrate-home", "--from", from, "--to", to, "--apply"}, "test-version"); rc != 0 {
+			t.Fatalf("migrate-home --apply rc = %d, want 0", rc)
+		}
+	})
+
+	if !strings.Contains(out, "old root left untouched") {
+		t.Fatalf("apply output = %q", out)
+	}
+	if _, err := os.Stat(config.HomeMigrationMarkerPath(to)); err != nil {
+		t.Fatalf("apply marker missing: %v", err)
+	}
+	if got, err := os.ReadFile(filepath.Join(to, "sessions", "chat.jsonl")); err != nil || string(got) != "old session\n" {
+		t.Fatalf("migrated session = %q, err=%v", got, err)
+	}
+}
+
 func TestWelcomePromptMissingKeysRequiresConfigSource(t *testing.T) {
 	if welcomeShouldPromptMissingKeys("", nil) {
 		t.Fatal("built-in defaults without a config source should not prompt for missing provider keys")
@@ -257,6 +302,16 @@ func TestWelcomePromptMissingKeysRequiresConfigSource(t *testing.T) {
 	}
 	if !welcomeShouldPromptMissingKeys("reasonix.toml", nil) {
 		t.Fatal("valid config source should enter the missing-key prompt path")
+	}
+}
+
+func writeCLITestFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

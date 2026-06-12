@@ -52,7 +52,7 @@ cd DeepSeek-Reasonix && make build                        # -> bin/reasonix(.exe
 
 | Legacy | Reasonix 1.0 |
 |---|---|
-| TS config files | `reasonix.toml` (project) / `config.toml` in your OS config dir (user; `~/.config/reasonix/` on Linux, `~/Library/Application Support/reasonix/` on macOS, `%AppData%\reasonix\` on Windows) — see `reasonix.example.toml` |
+| TS config files | `reasonix.toml` (project) / `config.toml` in `REASONIX_HOME` or your OS config dir (user; `~/.config/reasonix/` on Linux, `~/Library/Application Support/reasonix/` on macOS for existing installs, `%AppData%\reasonix\` on Windows) — see `reasonix.example.toml` |
 | env / API keys | `.env` or the environment (`DEEPSEEK_API_KEY`, `MIMO_API_KEY`, …) via `api_key_env` |
 | project memory | `REASONIX.md` (+ auto-memory), Claude-Code-compatible |
 | MCP servers | `[[plugins]]` in `reasonix.toml`, or a Claude-Code `.mcp.json` (read as-is) |
@@ -68,6 +68,38 @@ no longer exists land in the global session dir. Imported sessions resume with
 `--resume` or the history panel. The config import only runs when no v2 config exists yet — if v2
 wrote its config before your `0.x` data was in place nothing is overwritten, so
 copy any missing values across by hand.
+
+On macOS, v2 also keeps compatibility with the historical
+`~/Library/Application Support/reasonix` root. New installs default to
+`~/.config/reasonix` unless `REASONIX_HOME` is set; existing Application Support
+state (sessions, cache, project memory, desktop state) stays in place so an
+upgrade does not make history appear to disappear. If both macOS roots contain a
+`config.toml`, Reasonix loads the Application Support config first and
+`~/.config/reasonix/config.toml` second; future user-config writes go to the
+active user root.
+
+To fully move an existing macOS install into the documented root, run a dry-run
+first:
+
+```sh
+reasonix migrate-home
+```
+
+Then apply it:
+
+```sh
+reasonix migrate-home --apply
+```
+
+The migration is non-destructive: the old root is left untouched, `config.toml`
+and `credentials` are merged with the destination winning on conflicts, sessions
+and desktop sidecars are copied together, same-name session conflicts are kept
+under a migrated filename, and unknown file conflicts are archived under
+`.reasonix-home-migration-conflicts/`. Only after all data is copied does
+Reasonix write `.reasonix-home-migration.json` in the destination; after that
+both the CLI and desktop use the new root for config and state. Full user
+guide: [macOS home directory migration](./HOME_MIGRATION.md) /
+[`macOS 用户目录迁移说明`](./HOME_MIGRATION.zh-CN.md).
 
 ## What's the same
 

@@ -13,19 +13,24 @@ import (
 // UserDir are retained so the controller can resolve quick-add targets without
 // re-deriving discovery context.
 type Set struct {
-	Docs    []Source // REASONIX.md / AGENTS.md, ascending precedence
-	Store   Store    // auto-memory store (may be a zero/disabled Store)
-	Index   string   // MEMORY.md contents at load time
-	CWD     string   // project working dir used for discovery
-	UserDir string   // user config root (may be "")
+	Docs     []Source // REASONIX.md / AGENTS.md, ascending precedence
+	Store    Store    // auto-memory store (may be a zero/disabled Store)
+	Index    string   // MEMORY.md contents at load time
+	CWD      string   // project working dir used for discovery
+	UserDir  string   // user config root (may be "")
+	UserDirs []string // user doc roots in discovery order
+	StoreDir string   // user state root used for auto-memory
 }
 
-// Options configures discovery. CWD defaults to "." and UserDir is the user
-// config root (config.MemoryUserDir()); a "" UserDir disables user-global docs
-// and the auto-memory store.
+// Options configures discovery. CWD defaults to ".". UserDir is the primary
+// user-global doc root used for writes; UserDirs are all user doc roots to read.
+// StoreDir is the user state root for auto-memory. For backwards compatibility,
+// UserDir is used for all three when the newer fields are empty.
 type Options struct {
-	CWD     string
-	UserDir string
+	CWD      string
+	UserDir  string
+	UserDirs []string
+	StoreDir string
 }
 
 // Load discovers all memory for a session: the hierarchical docs and the
@@ -36,14 +41,46 @@ func Load(opts Options) *Set {
 	if cwd == "" {
 		cwd = "."
 	}
-	store := StoreFor(opts.UserDir, cwd)
-	return &Set{
-		Docs:    discoverDocs(cwd, opts.UserDir),
-		Store:   store,
-		Index:   store.Index(),
-		CWD:     cwd,
-		UserDir: opts.UserDir,
+	userDirs := normalizeDirs(opts.UserDirs)
+	if len(userDirs) == 0 && opts.UserDir != "" {
+		userDirs = normalizeDirs([]string{opts.UserDir})
 	}
+	storeRoot := opts.StoreDir
+	if storeRoot == "" {
+		storeRoot = opts.UserDir
+	}
+	store := StoreFor(storeRoot, cwd)
+	userDir := opts.UserDir
+	if userDir == "" && len(userDirs) > 0 {
+		userDir = userDirs[len(userDirs)-1]
+	}
+	return &Set{
+		Docs:     discoverDocs(cwd, userDirs),
+		Store:    store,
+		Index:    store.Index(),
+		CWD:      cwd,
+		UserDir:  userDir,
+		UserDirs: userDirs,
+		StoreDir: storeRoot,
+	}
+}
+
+func normalizeDirs(dirs []string) []string {
+	out := make([]string, 0, len(dirs))
+	seen := map[string]bool{}
+	for _, dir := range dirs {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			continue
+		}
+		key := absOf(dir)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, dir)
+	}
+	return out
 }
 
 // DocPath returns the doc-memory file a given scope writes to. To avoid splitting

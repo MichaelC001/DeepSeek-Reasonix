@@ -1,5 +1,5 @@
 // Package config loads Reasonix's runtime configuration from TOML. Resolution order:
-// flag > project ./reasonix.toml > user config.toml (in the OS user-config dir) > built-in defaults.
+// flag > project ./reasonix.toml > user config roots > built-in defaults.
 // Secrets come from the environment via api_key_env and are never stored in
 // config files.
 package config
@@ -1058,10 +1058,7 @@ func LoadForRoot(root string) (*Config, error) {
 		projectTOML = filepath.Join(root, "reasonix.toml")
 	}
 
-	var tomlSources []string
-	if uc := userConfigPath(); uc != "" {
-		tomlSources = append(tomlSources, uc)
-	}
+	tomlSources := userConfigPathsForLoad()
 	tomlSources = append(tomlSources, projectTOML)
 	sawConfigFile := false
 	for _, path := range tomlSources {
@@ -1205,13 +1202,27 @@ func mergeTOMLPlugins(paths []string) ([]PluginEntry, error) {
 func LoadForEdit(path string) *Config {
 	loadDotEnv()
 	cfg := Default()
-	if _, err := os.Stat(path); err == nil {
-		if err := migrateLegacyMCPTiersFile(path); err != nil {
-			slog.Warn("config: legacy mcp tier migration failed", "path", path, "err", err)
+	paths := []string{path}
+	if isUserConfigPath(path) {
+		paths = userConfigPathsForLoad()
+		var scoped []string
+		for _, p := range paths {
+			scoped = append(scoped, p)
+			if sameConfigPath(p, path) {
+				break
+			}
 		}
+		paths = scoped
 	}
-	if err := mergeFile(cfg, path); err != nil {
-		slog.Warn("config: load for edit failed, using defaults", "path", path, "err", err)
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			if err := migrateLegacyMCPTiersFile(p); err != nil {
+				slog.Warn("config: legacy mcp tier migration failed", "path", p, "err", err)
+			}
+		}
+		if err := mergeFile(cfg, p); err != nil {
+			slog.Warn("config: load for edit failed, using defaults", "path", p, "err", err)
+		}
 	}
 	normalizePluginCommandLines(cfg)
 	normalizeLegacyEffort(cfg)
@@ -1220,6 +1231,25 @@ func LoadForEdit(path string) *Config {
 	normalizeDesktopOfficialProviderAccess(cfg)
 	normalizeEffortConfig(cfg)
 	return cfg
+}
+
+func sameConfigPath(a, b string) bool {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	if a == "" || b == "" {
+		return false
+	}
+	aa, aerr := filepath.Abs(a)
+	bb, berr := filepath.Abs(b)
+	if aerr == nil && berr == nil {
+		a, b = aa, bb
+	}
+	a = filepath.Clean(a)
+	b = filepath.Clean(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 // mergeFile decodes a TOML file onto cfg if it exists. An absent file is not an error.
@@ -1629,17 +1659,38 @@ func retargetDesktopOfficialRef(ref string, access map[string]bool) string {
 	}
 }
 
-func userConfigPath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
+const reasonixHomeEnv = "REASONIX_HOME"
+
+func explicitReasonixRoot() (string, bool) {
+	root := cleanUserRoot(os.Getenv(reasonixHomeEnv))
+	if root == "" {
+		return "", false
+	}
+	return root, true
+}
+
+func cleanUserRoot(root string) string {
+	root = ExpandVars(strings.TrimSpace(root))
+	if root == "" {
 		return ""
 	}
-	return filepath.Join(dir, "reasonix", "config.toml")
+	if root == "~" || strings.HasPrefix(root, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		if root == "~" {
+			root = home
+		} else {
+			root = filepath.Join(home, strings.TrimPrefix(root, "~/"))
+		}
+	}
+	return filepath.Clean(root)
 }
 
 // userConfigDisplayPath is userConfigPath collapsed to a ~-relative form for
 // comments rendered into the user's own config.toml, so macOS/Windows users see
-// the real location instead of a hardcoded ~/.config path.
+// the active location instead of a hardcoded ~/.config path.
 func userConfigDisplayPath() string {
 	p := userConfigPath()
 	if p == "" {
@@ -1653,50 +1704,236 @@ func userConfigDisplayPath() string {
 	return p
 }
 
-// UserConfigPath is the user-global config.toml under os.UserConfigDir(): ~/.config
-// on Linux, ~/Library/Application Support on macOS, %AppData% on Windows. "" when
-// the user config dir can't be resolved.
-func UserConfigPath() string { return userConfigPath() }
-
-// UserCredentialsPath is the reasonix-owned global secrets file, beside
-// config.toml in the user config dir (os.UserConfigDir()/reasonix/credentials). It
-// holds KEY=value lines loaded into the environment by loadDotEnv. The setup
-// wizard writes API keys here, deliberately NOT named .env: keys never land in a
-// project's own .env (which can't be selectively gitignored), never get
-// committed, and resolve from any working directory. "" when the user config dir
-// can't be resolved.
-func UserCredentialsPath() string {
+func nativeUserRoot() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "reasonix", "credentials")
+	return filepath.Join(dir, "reasonix")
+}
+
+func macOSDocumentedUserRoot() string {
+	if runtime.GOOS != "darwin" {
+		return ""
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".config", "reasonix")
+}
+
+func dedupePaths(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	seen := map[string]bool{}
+	for _, p := range paths {
+		p = cleanUserRoot(p)
+		if p == "" {
+			continue
+		}
+		key := filepath.Clean(p)
+		if runtime.GOOS == "windows" {
+			key = strings.ToLower(key)
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+func pathExists(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func userRootsForLoad() []string {
+	if root, ok := explicitReasonixRoot(); ok {
+		return []string{root}
+	}
+	if root := completedHomeMigrationRoot(); root != "" {
+		return []string{root}
+	}
+	return dedupePaths([]string{nativeUserRoot(), macOSDocumentedUserRoot()})
+}
+
+func userConfigPathsForLoad() []string {
+	roots := userRootsForLoad()
+	paths := make([]string, 0, len(roots))
+	for _, root := range roots {
+		paths = append(paths, filepath.Join(root, "config.toml"))
+	}
+	return paths
+}
+
+func userConfigPathsByPriority() []string {
+	paths := userConfigPathsForLoad()
+	for i, j := 0, len(paths)-1; i < j; i, j = i+1, j-1 {
+		paths[i], paths[j] = paths[j], paths[i]
+	}
+	return paths
+}
+
+func userConfigRoot() string {
+	if root, ok := explicitReasonixRoot(); ok {
+		return root
+	}
+	roots := userRootsForLoad()
+	if len(roots) == 0 {
+		return ""
+	}
+	for i := len(roots) - 1; i >= 0; i-- {
+		if pathExists(filepath.Join(roots[i], "config.toml")) {
+			return roots[i]
+		}
+	}
+	for i := len(roots) - 1; i >= 0; i-- {
+		if pathExists(filepath.Join(roots[i], "credentials")) {
+			return roots[i]
+		}
+	}
+	if len(roots) > 1 && pathExists(roots[len(roots)-1]) {
+		return roots[len(roots)-1]
+	}
+	if len(roots) > 1 && pathExists(roots[0]) {
+		return roots[0]
+	}
+	return roots[len(roots)-1]
+}
+
+func userStateRoot() string {
+	if root, ok := explicitReasonixRoot(); ok {
+		return root
+	}
+	if root := completedHomeMigrationRoot(); root != "" {
+		return root
+	}
+	roots := userRootsForLoad()
+	if len(roots) == 0 {
+		return ""
+	}
+	if pathExists(roots[0]) {
+		return roots[0]
+	}
+	if root := userConfigRoot(); root != "" {
+		return root
+	}
+	return roots[len(roots)-1]
+}
+
+func userConfigPath() string {
+	root := userConfigRoot()
+	if root == "" {
+		return ""
+	}
+	return filepath.Join(root, "config.toml")
+}
+
+// UserConfigRoot is the user-editable Reasonix config root. Set REASONIX_HOME to
+// override it. On macOS, fresh installs use ~/.config/reasonix to match the public
+// docs, while existing ~/Library/Application Support/reasonix installs keep
+// working and are loaded as a lower-priority compatibility source.
+func UserConfigRoot() string { return userConfigRoot() }
+
+// UserConfigRoots returns user config roots in merge order: lower priority first,
+// higher priority last. It is mostly useful for diagnostics.
+func UserConfigRoots() []string { return userRootsForLoad() }
+
+// UserStateRoot is where app-owned state such as sessions, caches, desktop state,
+// and auto-memory are stored. Existing macOS Application Support installs keep
+// their state there so an upgrade does not make history appear to disappear.
+func UserStateRoot() string { return userStateRoot() }
+
+// UserConfigPath is the active user-global config file, or "" when the user config
+// dir can't be resolved.
+func UserConfigPath() string { return userConfigPath() }
+
+// UserCredentialsPath is the reasonix-owned global secrets file beside the active
+// user config file. It holds KEY=value lines loaded into the environment by
+// loadDotEnv. The setup wizard writes API keys here, deliberately NOT named .env:
+// keys never land in a project's own .env, never get committed, and resolve from
+// any working directory. "" when the user config dir can't be resolved.
+func UserCredentialsPath() string {
+	root := userConfigRoot()
+	if root == "" {
+		return ""
+	}
+	return filepath.Join(root, "credentials")
+}
+
+func userCredentialsPathsForLoad() []string {
+	active := UserCredentialsPath()
+	paths := []string{}
+	if active != "" {
+		paths = append(paths, active)
+	}
+	for _, root := range userRootsForLoad() {
+		path := filepath.Join(root, "credentials")
+		if active != "" && filepath.Clean(path) == filepath.Clean(active) {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	return dedupePaths(paths)
+}
+
+// UserCredentialsPaths returns credentials files in load order. Earlier files win
+// per key, so the active root is first and legacy roots are fallback sources.
+func UserCredentialsPaths() []string { return userCredentialsPathsForLoad() }
+
+// UserPathWarnings reports non-fatal compatibility states worth surfacing in
+// diagnostics, such as a macOS install that has both the historical native root
+// and the documented ~/.config/reasonix root.
+func UserPathWarnings() []string {
+	if _, ok := explicitReasonixRoot(); ok {
+		return nil
+	}
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	roots := userRootsForLoad()
+	if len(roots) < 2 {
+		return nil
+	}
+	native, documented := roots[0], roots[1]
+	if !pathExists(native) || !pathExists(documented) {
+		return nil
+	}
+	return []string{
+		fmt.Sprintf("found both macOS Reasonix roots; user config loads %s first, then %s; writes go to %s; app state stays in %s",
+			native, documented, userConfigPath(), userStateRoot()),
+	}
 }
 
 // ArchiveDir is where compacted conversation history is archived for
-// traceability (one timestamped .jsonl per compaction). Empty if the user config
-// directory cannot be resolved, in which case archiving is skipped.
+// traceability (one timestamped .jsonl per compaction). Empty if the state root
+// cannot be resolved, in which case archiving is skipped.
 func ArchiveDir() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
+	dir := userStateRoot()
+	if dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, "reasonix", "archive")
+	return filepath.Join(dir, "archive")
 }
 
 // SessionDir is where chat sessions are persisted (one .jsonl per session).
 // Used by `reasonix chat --continue` / `--resume` to find the recent ones. Empty
-// if the user config dir can't be resolved — sessions then aren't saved.
+// if the state root can't be resolved — sessions then aren't saved.
 func SessionDir() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
+	dir := userStateRoot()
+	if dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, "reasonix", "sessions")
+	return filepath.Join(dir, "sessions")
 }
 
 // ProjectSessionDir is the per-workspace session directory the desktop sidebar
-// lists: <config root>/projects/<slug>/sessions. Empty when either the config
+// lists: <state root>/projects/<slug>/sessions. Empty when either the state
 // root or workspaceRoot doesn't resolve.
 func ProjectSessionDir(workspaceRoot string) string {
 	base := MemoryUserDir()
@@ -1711,33 +1948,36 @@ func ProjectSessionDir(workspaceRoot string) string {
 }
 
 // WorkspaceSlug flattens an absolute workspace path into the directory name
-// used under <config root>/projects.
+// used under <state root>/projects.
 func WorkspaceSlug(absPath string) string {
 	return strings.NewReplacer(string(os.PathSeparator), "-", "/", "-", "\\", "-", ":", "-").Replace(absPath)
 }
 
 // CacheDir is the per-user cache root for derived/regenerable artefacts: MCP
-// handshake snapshots, plugin startup-latency telemetry. Lives beside the
-// existing dirs (UserConfigDir/reasonix/...) so the whole reasonix state tree
-// shares one root the user can wipe in a single rm. Empty when the OS dir is
-// unavailable — callers must tolerate that (caching is best-effort).
+// handshake snapshots, plugin startup-latency telemetry. Lives under the
+// Reasonix state root so the state tree can be wiped in a single rm. Empty when
+// the state root is unavailable — callers must tolerate that (caching is
+// best-effort).
 func CacheDir() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
+	dir := userStateRoot()
+	if dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, "reasonix", "cache")
+	return filepath.Join(dir, "cache")
 }
 
-// MemoryUserDir returns the reasonix user config root (…/reasonix), under which
-// the user-global REASONIX.md and the per-project auto-memory store live. Empty
-// when the user config dir can't be resolved, which disables user-scoped memory.
+// MemoryUserDir returns the Reasonix state root (…/reasonix), under which the
+// per-project auto-memory store lives. User-global doc memory is discovered from
+// UserMemoryDirs so old and documented config roots can both be read.
 func MemoryUserDir() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(dir, "reasonix")
+	return userStateRoot()
+}
+
+// UserMemoryDirs returns user-global doc-memory roots in load order. Existing
+// macOS Application Support docs are loaded before ~/.config/reasonix docs, so the
+// documented path can override older guidance without hiding it.
+func UserMemoryDirs() []string {
+	return userRootsForLoad()
 }
 
 // ConventionDirs are the parent directories scanned for agent assets (skills,
@@ -1762,10 +2002,10 @@ func conventionSubdirsAsc(base, sub string) []string {
 
 // CommandDirs returns the directories scanned for custom slash commands, lowest
 // priority first, so a later (more specific) directory overrides an earlier one
-// on a name clash. Order: home-dir convention dirs (~/.claude/commands … ~/.reasonix/commands),
-// the legacy XDG user dir (~/.config/reasonix/commands), then the project's
-// convention dirs (.claude/commands … .reasonix/commands). Scanning the .claude /
-// .agents / .agent dirs lets commands authored for other agent tools (same .md +
+// on a name clash. Order: home-dir convention dirs (~/.claude/commands …
+// ~/.reasonix/commands), user config roots, then the project's convention dirs
+// (.claude/commands … .reasonix/commands). Scanning the .claude / .agents /
+// .agent dirs lets commands authored for other agent tools (same .md +
 // frontmatter format) work here unchanged.
 func CommandDirs() []string {
 	return CommandDirsForRoot(".")
@@ -1780,8 +2020,8 @@ func CommandDirsForRoot(root string) []string {
 	if home, err := os.UserHomeDir(); err == nil {
 		dirs = append(dirs, conventionSubdirsAsc(home, "commands")...)
 	}
-	if dir, err := os.UserConfigDir(); err == nil {
-		dirs = append(dirs, filepath.Join(dir, "reasonix", "commands")) // legacy XDG user dir
+	for _, dir := range userRootsForLoad() {
+		dirs = append(dirs, filepath.Join(dir, "commands"))
 	}
 	dirs = append(dirs, conventionSubdirsAsc(root, "commands")...)
 	return dirs
@@ -1803,7 +2043,7 @@ func SourcePathForRoot(root string) string {
 	if _, err := os.Stat(projectTOML); err == nil {
 		return projectTOML
 	}
-	if uc := userConfigPath(); uc != "" {
+	for _, uc := range userConfigPathsByPriority() {
 		if _, err := os.Stat(uc); err == nil {
 			return uc
 		}

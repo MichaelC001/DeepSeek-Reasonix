@@ -1336,12 +1336,11 @@ type desktopTabsFile struct {
 }
 
 func desktopConfigDir() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, ".reasonix")
+	if dir := config.UserStateRoot(); dir != "" {
+		return dir
 	}
-	return filepath.Join(dir, "reasonix")
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".reasonix")
 }
 
 func (a *App) saveTabsLocked() {
@@ -3171,12 +3170,11 @@ func newTopicID() string {
 }
 
 func globalWorkspaceRoot() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, ".reasonix", "global-workspace")
+	if dir := config.UserStateRoot(); dir != "" {
+		return filepath.Join(dir, "global-workspace")
 	}
-	return filepath.Join(dir, "reasonix", "global-workspace")
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".reasonix", "global-workspace")
 }
 
 func ensureGlobalWorkspaceRoot() (string, error) {
