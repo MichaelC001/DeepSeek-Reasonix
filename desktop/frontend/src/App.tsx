@@ -79,6 +79,7 @@ import {
 } from "./lib/toolApprovalMode";
 import { loadLayoutSize, saveLayoutSize } from "./lib/layoutPreferences";
 import { hydrateDisplayMode } from "./lib/displayMode";
+import { DEFAULT_STATUS_BAR_ITEMS, normalizeStatusBarItems, type StatusBarItemId } from "./lib/statusBarItems";
 import { blobToBase64, renderSessionImageBlob, renderSessionPdfBlob } from "./lib/sessionExport";
 import { sessionActivityTime } from "./lib/session";
 import {
@@ -727,6 +728,8 @@ export default function App() {
   const [transientOverlayDismissSignal, setTransientOverlayDismissSignal] = useState(0);
   const [desktopPlatform, setDesktopPlatform] = useState<DesktopPlatform>(detectBrowserPlatform);
   const [expandThinking, setExpandThinking] = useState(false);
+  const [statusBarStyle, setStatusBarStyle] = useState<"icon" | "text">("text");
+  const [statusBarItems, setStatusBarItems] = useState<StatusBarItemId[]>(() => [...DEFAULT_STATUS_BAR_ITEMS]);
   const [renamingTopicId, setRenamingTopicId] = useState<string | null>(null);
   const [topicTitleDraft, setTopicTitleDraft] = useState("");
   const [topicExportOpen, setTopicExportOpen] = useState(false);
@@ -845,12 +848,14 @@ export default function App() {
   }, []);
 
   const applyDesktopPreferences = useCallback(
-    (settings: Pick<SettingsView, "desktopTheme" | "desktopThemeStyle" | "desktopLanguage" | "checkUpdates">) => {
+    (settings: Pick<SettingsView, "desktopTheme" | "desktopThemeStyle" | "desktopLanguage" | "checkUpdates" | "statusBarStyle" | "statusBarItems">) => {
       const nextTheme = normalizeThemePreference(settings.desktopTheme);
       const nextStyle = normalizeThemeStyleForTheme(settings.desktopThemeStyle, nextTheme);
       applyTheme(nextTheme, nextStyle, { persist: false });
       setLocalePref(normalizeLangPref(settings.desktopLanguage));
       setStartupUpdateChecksEnabled(settings.checkUpdates !== false);
+      setStatusBarStyle(settings.statusBarStyle === "text" ? "text" : "icon");
+      setStatusBarItems(normalizeStatusBarItems(settings.statusBarItems));
     },
     [setLocalePref],
   );
@@ -2638,9 +2643,12 @@ export default function App() {
               sessionTurns={sessionTurns}
               sessionTokens={state.sessionTokens}
               turnTokens={state.turnTotalTokens}
+              turnCost={state.turnCost}
               cost={state.sessionCost}
               currency={state.sessionCurrency}
               modelLabel={state.meta?.label}
+              labelStyle={statusBarStyle}
+              items={statusBarItems}
             />
           </footer>
           )}

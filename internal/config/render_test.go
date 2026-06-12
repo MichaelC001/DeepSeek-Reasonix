@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,6 +22,8 @@ func TestRenderTOMLRoundTrips(t *testing.T) {
 	orig.Desktop.Theme = "dark"
 	orig.Desktop.ThemeStyle = "graphite"
 	orig.Desktop.CloseBehavior = "background"
+	orig.Desktop.StatusBarStyle = "text"
+	orig.Desktop.StatusBarItems = []string{"model", "balance", "cache"}
 	orig.Desktop.CheckUpdates = boolPtr(false)
 	orig.Desktop.Telemetry = boolPtr(false)
 	orig.Notifications.Enabled = true
@@ -129,6 +132,12 @@ func TestRenderTOMLRoundTrips(t *testing.T) {
 	}
 	if got.Desktop.CloseBehavior != "background" {
 		t.Errorf("desktop.close_behavior = %q, want background", got.Desktop.CloseBehavior)
+	}
+	if got.Desktop.StatusBarStyle != "text" {
+		t.Errorf("desktop.status_bar_style = %q, want text", got.Desktop.StatusBarStyle)
+	}
+	if want := []string{"model", "balance", "cache"}; !reflect.DeepEqual(got.Desktop.StatusBarItems, want) {
+		t.Errorf("desktop.status_bar_items = %v, want %v", got.Desktop.StatusBarItems, want)
 	}
 	if got.Desktop.CheckUpdates == nil || *got.Desktop.CheckUpdates {
 		t.Errorf("desktop.check_updates = %+v, want false", got.Desktop.CheckUpdates)
@@ -381,10 +390,11 @@ func TestScopedRenderSeparatesUserAndProjectConfig(t *testing.T) {
 	c.Desktop.Theme = "dark"
 	c.Desktop.ThemeStyle = "graphite"
 	c.Desktop.CloseBehavior = "background"
+	c.Desktop.StatusBarStyle = "text"
 	c.Desktop.CheckUpdates = boolPtr(false)
 
 	user := RenderTOMLForScope(c, RenderScopeUser)
-	for _, want := range []string{"config_version = 2", "[desktop]", `theme = "dark"`, `close_behavior = "background"`, `check_updates = false`, "[notifications]"} {
+	for _, want := range []string{"config_version = 2", "[desktop]", `theme = "dark"`, `close_behavior = "background"`, `status_bar_style = "text"`, `check_updates = false`, "[notifications]"} {
 		if !strings.Contains(user, want) {
 			t.Fatalf("user render missing %q:\n%s", want, user)
 		}
