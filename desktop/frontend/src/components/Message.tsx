@@ -358,18 +358,21 @@ export const AssistantMessage = memo(function AssistantMessage({
   const prevStreamingRef = useRef(item.streaming);
   useGSAPCollapse(reasoningBodyRef, reasoningOpen);
 
-  // Auto-open on new stream start; auto-close when stream finishes, but only
-  // when the user has never manually toggled this cycle.
+  // Follow the current display mode while streaming unless the user manually
+  // toggled this message; auto-close at stream end for untouched messages.
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     const nowStreaming = item.streaming;
     prevStreamingRef.current = nowStreaming;
 
-    if (nowStreaming && !wasStreaming) {
-      // New stream started — reset user override, auto-open.
-      userOverridden.current = false;
-      if (!defaultExpanded) setReasoningOpen(expandWhileStreaming);
-    } else if (!nowStreaming && wasStreaming) {
+    if (nowStreaming) {
+      if (!wasStreaming) userOverridden.current = false;
+      if (defaultExpanded) {
+        setReasoningOpen(true);
+      } else if (!userOverridden.current) {
+        setReasoningOpen(expandWhileStreaming);
+      }
+    } else if (wasStreaming) {
       // Stream just ended — auto-close if user didn't interact.
       if (!defaultExpanded && !userOverridden.current) {
         setReasoningOpen(false);
