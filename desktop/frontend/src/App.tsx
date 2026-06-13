@@ -1474,11 +1474,20 @@ export default function App() {
   }, [activeTab?.scope, activeTab?.workspaceRoot]);
 
   const openBlankSession = useCallback(async (scope: string, workspaceRoot: string) => {
-    await ensureBlankTab(scope, scope === "project" ? workspaceRoot : "");
+    try {
+      await ensureBlankTab(scope, scope === "project" ? workspaceRoot : "");
+    } catch {
+      if (scope === "project" && workspaceRoot) {
+        showToast(t("history.failedOpenProject", { name: workspaceDisplayName(workspaceRoot), path: workspaceRoot }));
+      } else {
+        showToast(t("history.failedOpenSession"));
+      }
+      return;
+    }
     setProjectRevision((value) => value + 1);
     await refreshTabMetas();
     setTabRevealSignal((signal) => signal + 1);
-  }, [ensureBlankTab, refreshTabMetas]);
+  }, [ensureBlankTab, refreshTabMetas, showToast, t]);
 
   useEffect(() => {
     void refreshTabMetas();
@@ -2014,14 +2023,23 @@ export default function App() {
   const handleOpenTopic = useCallback(async (scope: string, workspaceRoot: string, topicId: string) => {
     closeTransientOverlays();
     setSidebarImDetailConnectionId("");
-    if (scope === "global") {
-      await openGlobalTab(topicId);
-    } else {
-      await openProjectTab(workspaceRoot, topicId);
+    try {
+      if (scope === "global") {
+        await openGlobalTab(topicId);
+      } else {
+        await openProjectTab(workspaceRoot, topicId);
+      }
+    } catch {
+      if (scope === "project" && workspaceRoot) {
+        showToast(t("history.failedOpenProject", { name: workspaceDisplayName(workspaceRoot), path: workspaceRoot }));
+      } else {
+        showToast(t("history.failedOpenSession"));
+      }
+      return;
     }
     await refreshTabMetas();
     setTabRevealSignal((signal) => signal + 1);
-  }, [closeTransientOverlays, openGlobalTab, openProjectTab, refreshTabMetas]);
+  }, [closeTransientOverlays, openGlobalTab, openProjectTab, refreshTabMetas, showToast, t]);
 
   const openSidebarImConnectionSession = useCallback(async (connection: SidebarImConnection) => {
     const target = mappedSessionTarget(connection.sessionId);
