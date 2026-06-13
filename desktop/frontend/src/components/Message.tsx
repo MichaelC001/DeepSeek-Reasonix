@@ -7,6 +7,7 @@ import { parseAttachmentRefsForDisplay, sortDisplayAttachments } from "../lib/at
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
+import { displayReasoningText } from "../lib/reasoningDisplay";
 import type { Item, MessageActionScope } from "../lib/useController";
 import type { CheckpointMeta } from "../lib/types";
 
@@ -338,15 +339,21 @@ export function TurnActions({
 export const AssistantMessage = memo(function AssistantMessage({
   item,
   defaultExpanded = false,
+  expandWhileStreaming = true,
+  truncateStreamingReasoning = false,
 }: {
   item: AssistantItem;
   defaultExpanded?: boolean;
+  /** false in compact mode: completed steps fold away, so auto-open + fold reads as flicker. */
+  expandWhileStreaming?: boolean;
+  /** Opt-in for compact mode to keep live DeepSeek reasoning from growing an unbounded DOM. */
+  truncateStreamingReasoning?: boolean;
 }) {
   const t = useT();
   const reasoningBodyRef = useRef<HTMLDivElement>(null);
   // Thinking streams in before the answer — show it live while the model is still
   // working, then it stays available behind the toggle once the answer arrives.
-  const [reasoningOpen, setReasoningOpen] = useState(item.streaming || defaultExpanded);
+  const [reasoningOpen, setReasoningOpen] = useState((expandWhileStreaming && item.streaming) || defaultExpanded);
   const userOverridden = useRef(false);
   const prevStreamingRef = useRef(item.streaming);
   useGSAPCollapse(reasoningBodyRef, reasoningOpen);
@@ -361,14 +368,14 @@ export const AssistantMessage = memo(function AssistantMessage({
     if (nowStreaming && !wasStreaming) {
       // New stream started — reset user override, auto-open.
       userOverridden.current = false;
-      if (!defaultExpanded) setReasoningOpen(true);
+      if (!defaultExpanded) setReasoningOpen(expandWhileStreaming);
     } else if (!nowStreaming && wasStreaming) {
       // Stream just ended — auto-close if user didn't interact.
       if (!defaultExpanded && !userOverridden.current) {
         setReasoningOpen(false);
       }
     }
-  }, [item.streaming, defaultExpanded]);
+  }, [item.streaming, defaultExpanded, expandWhileStreaming]);
 
   const toggleReasoning = () => {
     userOverridden.current = true;
@@ -377,6 +384,12 @@ export const AssistantMessage = memo(function AssistantMessage({
   const hasText = item.streaming || item.text.trim() !== "";
   const processOnly = Boolean(item.reasoning) && !hasText;
   const processWithText = Boolean(item.reasoning) && hasText;
+  const visibleReasoning = reasoningOpen
+    ? displayReasoningText(item.reasoning, {
+        streaming: item.streaming,
+        truncateStreaming: truncateStreamingReasoning,
+      })
+    : "";
   return (
     <div className={`msg msg--assistant${processOnly ? " msg--process-only" : ""}${processWithText ? " msg--process-with-text" : ""}`} data-history-restore={item.id.startsWith("h") ? "" : undefined} data-entrance={item.id}>
       {item.reasoning && (
@@ -393,7 +406,9 @@ export const AssistantMessage = memo(function AssistantMessage({
             <span className="reasoning__meta">{item.streaming ? t("msg.thinkingRunning") : t("msg.thinkingDone")}</span>
             <ChevronRight className={`reasoning__chevron${reasoningOpen ? " reasoning__chevron--open" : ""}`} size={12} />
           </button>
-          <div ref={reasoningBodyRef} className="reasoning__body">{item.reasoning}</div>
+          {reasoningOpen && (
+            <div ref={reasoningBodyRef} className="reasoning__body">{visibleReasoning}</div>
+          )}
         </div>
       )}
       {hasText && (
