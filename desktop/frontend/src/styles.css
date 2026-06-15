@@ -14853,6 +14853,10 @@ a[href] {
   margin-left: 0;
 }
 
+.app-chrome__tools--fixed .tabbar__new {
+  margin-left: 0;
+}
+
 .app-chrome__tools--workspace-pressed .app-chrome__command {
   animation: app-chrome-command-follow-toggle 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -14906,7 +14910,7 @@ a[href] {
 
 .app--darwin .app-chrome--tabs {
   align-items: stretch;
-  padding: 0 calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + 16px) 0 calc(var(--chrome-left-toggle-offset) + var(--chrome-toggle-size) + 8px);
+  padding: 0 calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + var(--chrome-toggle-size) + 24px) 0 calc(var(--chrome-left-toggle-offset) + var(--chrome-toggle-size) + 8px);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--bg-soft) 94%, var(--bg-elev)), var(--bg-soft));
   transition: padding 0.28s cubic-bezier(0.2, 0.72, 0.2, 1);
@@ -14922,7 +14926,7 @@ a[href] {
   position: absolute;
   top: 0;
   left: calc(var(--chrome-left-toggle-offset) + var(--chrome-toggle-size) + 12px);
-  right: calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + 20px);
+  right: calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + var(--chrome-toggle-size) + 28px);
   z-index: var(--z-local-handle);
   height: 10px;
   --wails-draggable: drag;
@@ -17778,7 +17782,7 @@ a[href] {
 }
 
 .app--darwin .app-chrome--tabs {
-  padding-right: calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + 16px);
+  padding-right: calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + var(--chrome-toggle-size) + 24px);
   background: color-mix(in srgb, var(--bg-soft) 90%, var(--bg-elev));
 }
 
@@ -18367,7 +18371,7 @@ a[href] {
 
 :root[data-theme-style] .app--darwin .app-chrome--tabs {
   padding-left: calc(var(--chrome-left-safe-offset) + var(--chrome-toggle-size) + 8px);
-  padding-right: calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + 16px);
+  padding-right: calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + var(--chrome-toggle-size) + 24px);
   background: var(--bg-elev);
   transition: background var(--dur-fast), border-color var(--dur-fast);
 }
@@ -20572,7 +20576,7 @@ a[href] {
    new_design comps: panel toggles, run-mode badges, active sessions, and file
    tree folder rows all use each theme's accent + accent-soft pair. */
 :root[data-theme-style] .app--darwin .app-chrome--tabs {
-  padding-right: calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + 16px);
+  padding-right: calc(var(--chrome-toggle-size) + var(--chrome-toggle-size) + var(--chrome-toggle-size) + 24px);
 }
 
 :root[data-theme-style] .app--darwin .app-chrome--tabs .app-chrome__panel-toggle--right {

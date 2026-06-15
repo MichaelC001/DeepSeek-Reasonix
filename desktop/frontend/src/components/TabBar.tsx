@@ -20,6 +20,7 @@ interface TabBarProps {
   onOpenPalette?: () => void;
   commandCompact?: boolean;
   revealActiveSignal?: number;
+  showNewTabButton?: boolean;
 }
 
 type DropSide = "before" | "after";
@@ -52,7 +53,7 @@ function projectAccentStyle(color?: string): CSSProperties | undefined {
   return { "--project-accent": value } as CSSProperties;
 }
 
-export function TabBar({ tabs, activeTabId, onTabChange, onTabClose, onTabsClose, onTabsReorder, onNewTab, onOpenPalette, commandCompact = false, revealActiveSignal = 0 }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onTabChange, onTabClose, onTabsClose, onTabsReorder, onNewTab, onOpenPalette, commandCompact = false, revealActiveSignal = 0, showNewTabButton = true }: TabBarProps) {
   const t = useT();
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; side: DropSide } | null>(null);
@@ -263,11 +264,13 @@ export function TabBar({ tabs, activeTabId, onTabChange, onTabClose, onTabsClose
           );
         })}
       </div>
-      <Tooltip label={t("tabBar.newSession")}>
-        <button className="tabbar__new" type="button" aria-label={t("tabBar.newSession")} onClick={onNewTab}>
-          <Plus size={13} />
-        </button>
-      </Tooltip>
+      {showNewTabButton && (
+        <Tooltip label={t("tabBar.newSession")}>
+          <button className="tabbar__new" type="button" aria-label={t("tabBar.newSession")} onClick={onNewTab}>
+            <Plus size={13} />
+          </button>
+        </Tooltip>
+      )}
       {onOpenPalette && <span className="tabbar__spacer" aria-hidden="true" />}
       {onOpenPalette && (
         <button

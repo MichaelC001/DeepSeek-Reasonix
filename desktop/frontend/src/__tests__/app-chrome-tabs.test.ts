@@ -44,6 +44,10 @@ function finalDeclaration(selector: string, property: string): string | undefine
   return value;
 }
 
+function occurrences(value: string, pattern: string): number {
+  return value.split(pattern).length - 1;
+}
+
 console.log("\napp chrome tabs");
 
 ok(
@@ -88,14 +92,24 @@ ok(
   "AppChrome renders the command search as a fixed chrome tool",
 );
 
+ok(
+  /app-chrome__new-tab/.test(appChromeSource),
+  "AppChrome renders the new-tab button in the fixed chrome tools",
+);
+
+ok(
+  /showNewTabButton=\{!darwinChrome\}/.test(appChromeSource),
+  "AppChrome removes the flowing TabBar new-tab button on macOS chrome",
+);
+
 for (const selector of [
   ".app--darwin .app-chrome--tabs",
   ":root[data-theme-style] .app--darwin .app-chrome--tabs",
 ]) {
   const rightSpace = finalDeclaration(selector, "padding-right") ?? finalDeclaration(selector, "padding") ?? "";
   ok(
-    rightSpace.includes("--chrome-toggle-size") && !rightSpace.includes("--chrome-right-toggle-offset"),
-    `${selector} reserves fixed chrome tool width without shrinking for the right dock`,
+    occurrences(rightSpace, "--chrome-toggle-size") >= 3 && !rightSpace.includes("--chrome-right-toggle-offset"),
+    `${selector} reserves fixed new-tab, search, and panel-toggle width without shrinking for the right dock`,
   );
 }
 

@@ -1,4 +1,4 @@
-import { Minus, PanelLeft, PanelRight, Search, Square, X } from "lucide-react";
+import { Minus, PanelLeft, PanelRight, Plus, Search, Square, X } from "lucide-react";
 import { TabBar } from "./TabBar";
 import type { TabMeta } from "../lib/types";
 import { useT } from "../lib/i18n";
@@ -80,6 +80,7 @@ export function AppChrome({
       onNewTab={onNewTab}
       onOpenPalette={undefined}
       commandCompact={commandCompact}
+      showNewTabButton={!darwinChrome}
     />
   );
 
@@ -134,6 +135,15 @@ export function AppChrome({
             ].filter(Boolean).join(" ")}
             aria-label={t("tabBar.commandSearch")}
           >
+            <button
+              className="tabbar__new app-chrome__new-tab"
+              type="button"
+              onClick={onNewTab}
+              aria-label={t("tabBar.newSession")}
+              title={t("tabBar.newSession")}
+            >
+              <Plus size={13} />
+            </button>
             <button
               className={[
                 "tabbar__command",
