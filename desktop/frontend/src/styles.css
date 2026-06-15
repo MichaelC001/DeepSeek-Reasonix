@@ -14780,6 +14780,16 @@ a[href] {
   min-width: 16px;
 }
 
+.app-chrome__tab-strip {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+
 .app-chrome__identity {
   flex: 0 0 auto;
   min-width: 128px;
@@ -18517,6 +18527,12 @@ a[href] {
 
 :root[data-theme-style] .tabbar__tabs::-webkit-scrollbar {
   display: none;
+}
+
+:root[data-theme-style] .app-chrome--tabs .tabbar,
+:root[data-theme-style] .app-chrome--tabs .tabbar__tabs {
+  flex: 1 1 auto;
+  max-width: 100%;
 }
 
 .app-chrome--workbench .app-chrome__workbench-search {
