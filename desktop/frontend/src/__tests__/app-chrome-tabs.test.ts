@@ -64,6 +64,21 @@ ok(
 );
 
 ok(
+  finalDeclaration(".app-chrome__tab-strip", "overflow") === "hidden",
+  "AppChrome tab strip clips tabs to the available chrome width",
+);
+
+ok(
+  finalDeclaration(".app-chrome__tab-strip", "min-width") === "0",
+  "AppChrome tab strip can shrink beside the right dock",
+);
+
+ok(
+  finalDeclaration(":root[data-theme-style] .app-chrome--tabs .tabbar__tabs", "max-width") === "100%",
+  "themed AppChrome tab lists keep a bounded maximum width",
+);
+
+ok(
   /workbenchChrome \? \(\s*<span className="app-chrome__spacer" aria-hidden="true" \/>/s.test(appChromeSource),
   "AppChrome workbench branch skips the tab strip",
 );
