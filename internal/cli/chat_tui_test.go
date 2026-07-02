@@ -170,19 +170,85 @@ func TestTranscriptMirrorsCommits(t *testing.T) {
 	}
 }
 
-func TestTermuxNativeScrollbackCommitsFinalAnswer(t *testing.T) {
+func TestInlineStreamAnswerCommitsClosedBlocksProgressively(t *testing.T) {
 	m := newTestChatTUI()
 	m.nativeScrollback = true
 	m.pending.WriteString("first paragraph\n\nsecond paragraph")
 
 	m.streamAnswer()
-	if len(*m.pendingCommit) != 0 {
-		t.Fatalf("Termux native scrollback should not commit rewritten streaming blocks, got %v", *m.pendingCommit)
+	got := strings.Join(*m.pendingCommit, "\n")
+	if !strings.Contains(got, "first paragraph") {
+		t.Fatalf("inline streaming should commit the closed block immediately, got %v", *m.pendingCommit)
+	}
+	if strings.Contains(got, "second paragraph") {
+		t.Fatalf("the still-open trailing block must stay buffered, got %v", *m.pendingCommit)
 	}
 
 	m.commitPending()
-	if got := strings.Join(*m.pendingCommit, "\n"); !strings.Contains(got, "first paragraph") || !strings.Contains(got, "second paragraph") {
-		t.Fatalf("final answer was not committed to native scrollback: %v", *m.pendingCommit)
+	got = strings.Join(append([]string{}, *m.pendingCommit...), "\n")
+	if !strings.Contains(got, "second paragraph") {
+		t.Fatalf("final answer remainder was not committed: %v", *m.pendingCommit)
+	}
+	if strings.Count(got, "first paragraph") != 1 {
+		t.Fatalf("closed block must be committed exactly once, got %v", *m.pendingCommit)
+	}
+	if m.answerFlushed != 0 || m.answerSegmented {
+		t.Fatalf("answer stream state should reset after commitPending: flushed=%d segmented=%v", m.answerFlushed, m.answerSegmented)
+	}
+}
+
+func TestInlineActivityShowsStreamingTails(t *testing.T) {
+	m := newTestChatTUI()
+	m.nativeScrollback = true
+	m.width = 80
+
+	// Streaming reasoning shows the thinking marker plus a live tail.
+	m.ingestEvent(event.Event{Kind: event.Reasoning, Text: "pondering deeply"})
+	act := m.renderInlineActivity()
+	if !strings.Contains(act, "pondering deeply") {
+		t.Fatalf("activity area should show the reasoning tail, got %q", act)
+	}
+
+	// The answer stream replaces it: unflushed tail visible until committed.
+	m.ingestEvent(event.Event{Kind: event.Text, Text: "partial answer without boundary"})
+	act = m.renderInlineActivity()
+	if strings.Contains(act, "pondering deeply") {
+		t.Fatalf("reasoning tail should collapse when the answer starts, got %q", act)
+	}
+	if !strings.Contains(act, "partial answer without boundary") {
+		t.Fatalf("activity area should show the unflushed answer tail, got %q", act)
+	}
+
+	// Message finalizes the turn: the activity area empties out.
+	m.ingestEvent(event.Event{Kind: event.Message, Text: "partial answer without boundary"})
+	if act := m.renderInlineActivity(); act != "" {
+		t.Fatalf("activity area should be empty after the turn finalizes, got %q", act)
+	}
+}
+
+func TestInlineActivityShowsToolTail(t *testing.T) {
+	m := newTestChatTUI()
+	m.nativeScrollback = true
+	m.width = 80
+
+	m.beginToolRunning("shell-ls")
+	act := m.renderInlineActivity()
+	if !strings.Contains(act, connector) {
+		t.Fatalf("activity area should show the working line for a silent tool, got %q", act)
+	}
+
+	m.streamToolOutput("shell-ls", "file-a\nfile-b\n")
+	act = m.renderInlineActivity()
+	if !strings.Contains(act, "file-a") || !strings.Contains(act, "file-b") {
+		t.Fatalf("activity area should show the tool output tail, got %q", act)
+	}
+
+	m.collapseToolOutput("shell-ls", "")
+	if act := m.renderInlineActivity(); strings.Contains(act, "file-a") {
+		t.Fatalf("tool tail should leave the activity area after collapse, got %q", act)
+	}
+	if got := strings.Join(*m.pendingCommit, "\n"); !strings.Contains(got, "file-a") {
+		t.Fatalf("collapsed tool preview should land in scrollback, got %q", got)
 	}
 }
 

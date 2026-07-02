@@ -152,6 +152,11 @@ type chatTUI struct {
 	// that doesn't close a new paragraph re-renders nothing.
 	answerIdx     int
 	answerFlushed int
+	// answerSegmented marks that at least one closed markdown block of the
+	// current answer has already been committed to scrollback (inline renderer),
+	// so the next segment needs a spacer and commitPending must not re-commit
+	// the flushed prefix.
+	answerSegmented bool
 	// toolStreamIdx is the transcript index of a running tool's live-output block
 	// (streamed via ToolProgress under the tool card); -1 when none. toolStreamID
 	// is the call ID it belongs to. Only a bounded tail is kept — the last few
@@ -1605,6 +1610,9 @@ func (m chatTUI) bottomRows() int {
 	// wrapping. The fallback to 2 (unwrapped) covers the initial frame and
 	// tests that don't call Update first.
 	if m.nativeScrollback {
+		if act := m.renderInlineActivity(); act != "" {
+			rows += strings.Count(act, "\n") + 1
+		}
 		if main := m.renderMainManager(); main != "" {
 			rows += strings.Count(main, "\n") + 1
 		}
@@ -1740,7 +1748,7 @@ const reasoningTailLines = 12
 // visible while the model works without re-rendering the whole thing per token.
 func (m *chatTUI) streamReasoning(chunk string) {
 	m.reasoning.WriteString(chunk) // full text retained for verbose mode
-	if m.reasoningTextIdx < 0 {
+	if m.reasoningTextIdx < 0 && !m.reasoningNative {
 		return
 	}
 	m.reasoningView = append(m.reasoningView, chunk...)
@@ -1750,6 +1758,9 @@ func (m *chatTUI) streamReasoning(chunk string) {
 			drop++
 		}
 		m.reasoningView = m.reasoningView[:copy(m.reasoningView, m.reasoningView[drop:])]
+	}
+	if m.reasoningNative {
+		return // the inline activity area renders the tail; nothing to rewrite
 	}
 	m.transcript[m.reasoningTextIdx] = reasoningBlock(string(m.reasoningView), m.width, reasoningTailLines)
 	m.transcriptDirty = true
@@ -2105,10 +2116,18 @@ func (m *chatTUI) beginToolRunning(id string) {
 // tickToolRunning re-renders the working line of a tool that's dispatched but
 // hasn't produced output yet. A no-op once output streams in or no tool runs.
 func (m *chatTUI) tickToolRunning() {
-	if m.nativeScrollback {
+	if m.toolLineCount != 0 || m.toolPartial != "" {
 		return
 	}
-	if m.toolStreamIdx < 0 || m.toolLineCount != 0 || m.toolPartial != "" {
+	if m.nativeScrollback {
+		// The inline activity area renders the working line at view time; just
+		// advance the spinner frame while a silent tool is still running.
+		if m.toolStreamID != "" {
+			m.toolStreamFrame++
+		}
+		return
+	}
+	if m.toolStreamIdx < 0 {
 		return
 	}
 	m.toolStreamFrame++
@@ -2165,6 +2184,7 @@ func (m *chatTUI) commitReasoning() {
 // re-renders when a new paragraph actually closes.
 func (m *chatTUI) streamAnswer() {
 	if m.nativeScrollback {
+		m.streamAnswerInline()
 		return
 	}
 	prefix := flushableMarkdownPrefix(m.pending.String())
@@ -2194,6 +2214,17 @@ func (m *chatTUI) commitPending() {
 	if m.pending.Len() == 0 {
 		m.answerIdx = -1
 		m.answerFlushed = 0
+		m.answerSegmented = false
+		return
+	}
+	if m.nativeScrollback {
+		// Inline: closed blocks were already committed by streamAnswerInline;
+		// only the remainder past the flushed prefix still needs to land.
+		m.commitAnswerSegment(m.pending.String()[m.answerFlushed:])
+		m.pending.Reset()
+		m.answerIdx = -1
+		m.answerFlushed = 0
+		m.answerSegmented = false
 		return
 	}
 	raw := m.pending.String()
@@ -2211,6 +2242,7 @@ func (m *chatTUI) commitPending() {
 	m.pending.Reset()
 	m.answerIdx = -1
 	m.answerFlushed = 0
+	m.answerSegmented = false
 }
 
 // flushableMarkdownPrefix returns the longest prefix of buf made of complete
@@ -2449,6 +2481,15 @@ func (m chatTUI) View() tea.View {
 	// transcriptHeight so the viewport above fills exactly the rest of the screen.
 	var parts []string
 	rowsAboveBox := 0 // terminal rows occupied by panels/working line before the composer
+	// Inline: live in-flight state (thought tail, tool tail, streaming answer
+	// tail) renders at the very top of the pinned region, directly under the
+	// scrollback it will eventually be committed into.
+	if m.nativeScrollback {
+		if act := m.renderInlineActivity(); act != "" {
+			parts = append(parts, act)
+			rowsAboveBox += strings.Count(act, "\n") + 1
+		}
+	}
 	if todo := m.renderTodoPanel(); todo != "" {
 		parts = append(parts, todo)
 		rowsAboveBox += strings.Count(todo, "\n") + 1
