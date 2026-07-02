@@ -81,6 +81,7 @@ type UIConfig struct {
 	CloseBehavior  string `toml:"close_behavior"`  // legacy desktop close behavior; prefer desktop.close_behavior
 	ShowReasoning  bool   `toml:"show_reasoning"`  // Ctrl+O / /verbose: show thinking text in CLI; false = collapsed
 	CursorShape    string `toml:"cursor_shape"`    // block|underline|bar; empty defaults to underline
+	Renderer       string `toml:"renderer"`        // inline|fullscreen|auto; empty defaults to auto
 }
 
 // DesktopConfig controls desktop-only UI preferences. It is intentionally
@@ -167,6 +168,21 @@ func (c *Config) UICursorShape() string {
 		return "bar"
 	default:
 		return "underline"
+	}
+}
+
+// UIRenderer normalizes ui.renderer: "inline" (transcript printed into the
+// terminal's own scrollback, Claude Code-style), "fullscreen" (alt-screen
+// viewport), or "" for auto-detection. Unknown values map to "" so a typo
+// falls back to auto rather than silently forcing a mode.
+func (c *Config) UIRenderer() string {
+	switch strings.ToLower(strings.TrimSpace(c.UI.Renderer)) {
+	case "inline":
+		return "inline"
+	case "fullscreen":
+		return "fullscreen"
+	default:
+		return ""
 	}
 }
 

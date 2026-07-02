@@ -491,7 +491,7 @@ func newChatTUI(ctrl control.SessionAPI, missing string, eventCh chan event.Even
 	sp.Style = themeStyle(activeCLITheme.accent)
 
 	commitBuf := []string{}
-	nativeScrollback := detectTermuxTerminal()
+	nativeScrollback := renderModeInlineActive()
 	renderW := transcriptContentWidth(termW, nativeScrollback)
 	return chatTUI{
 		ctrl:                 ctrl,

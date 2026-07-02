@@ -538,6 +538,7 @@ func chatREPL(args []string) int {
 	yolo := fs.Bool("dangerously-skip-permissions", false, "YOLO: auto-approve approval-gated tool calls this session; same runtime mode as Ctrl+Y")
 	fs.BoolVar(yolo, "yolo", false, "alias for --dangerously-skip-permissions")
 	dir := fs.String("dir", "", "change to this directory first (project root); config, sandbox and file tools resolve from here")
+	renderer := fs.String("renderer", "", "transcript renderer: inline (terminal scrollback, native mouse/selection) | fullscreen (alt-screen viewport) | auto")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -549,6 +550,16 @@ func chatREPL(args []string) int {
 		configureCLIThemeWithStyle(cfg.UITheme(), cfg.UIThemeStyle())
 		cliCursorShape = cfg.UICursorShape()
 	}
+	cfgRenderer := ""
+	if err == nil {
+		cfgRenderer = cfg.UIRenderer()
+	}
+	mode, modeErr := resolveRenderMode(*renderer, cfgRenderer)
+	if modeErr != nil {
+		fmt.Fprintln(os.Stderr, i18n.M.ErrorPrefix, modeErr)
+		return 2
+	}
+	resolvedRenderMode = mode
 
 	// Decide whether we're starting fresh or resuming. --resume opens an
 	// interactive picker; --continue / -c jumps straight into the newest.
