@@ -128,27 +128,28 @@ type Messages struct {
 	CompactionManual  string // trigger label: user ran /compact
 
 	// chat TUI slash commands.
-	SlashCompactDone    string // "/compact" succeeded
-	SlashCompactFailed  string // "/compact" errored, prefixed before the underlying error
-	SlashNewDone        string // "/new" succeeded
-	SlashNewFailed      string // "/new" errored
-	SlashClearPrompt    string // "/clear" destructive confirmation prompt
-	SlashClearDone      string // "/clear" succeeded
-	SlashClearFailed    string // "/clear" errored
-	SlashClsDone        string // "/cls" succeeded
-	SlashTodoCleared    string // "/todo" dismissed the pinned task list
-	SlashUnavailable    string // the command is configured off (no callback wired)
-	SlashUnknown        string // shown when the user types an unrecognised "/cmd"
-	SlashHelp           string // listed commands
-	SlashPromptEmpty    string // an MCP prompt returned no text to send
-	SlashMCPNone        string // /mcp when no MCP servers are connected
-	CtrlCQuitHint       string // shown on first Ctrl+C while idle; second press exits
-	CompHintSlash       string // key hint footer under the slash-command menu
-	CompHintFile        string // key hint footer under the @ file/resource menu
-	MouseCopiedHint     string // transient status-line hint after a mouse/Ctrl+C selection copy
-	MouseCaptureOnHint  string // "/mouse" turned in-app mouse handling back on
-	MouseCaptureOffHint string // "/mouse" released mouse capture to the terminal
-	MouseCaptureTag     string // persistent status-line marker while mouse capture is off
+	SlashCompactDone       string // "/compact" succeeded
+	SlashCompactFailed     string // "/compact" errored, prefixed before the underlying error
+	SlashNewDone           string // "/new" succeeded
+	SlashNewFailed         string // "/new" errored
+	SlashClearPrompt       string // "/clear" destructive confirmation prompt
+	SlashClearDone         string // "/clear" succeeded
+	SlashClearFailed       string // "/clear" errored
+	SlashClsDone           string // "/cls" succeeded
+	SlashTodoCleared       string // "/todo" dismissed the pinned task list
+	SlashUnavailable       string // the command is configured off (no callback wired)
+	SlashUnknown           string // shown when the user types an unrecognised "/cmd"
+	SlashHelp              string // listed commands
+	SlashPromptEmpty       string // an MCP prompt returned no text to send
+	SlashMCPNone           string // /mcp when no MCP servers are connected
+	CtrlCQuitHint          string // shown on first Ctrl+C while idle; second press exits
+	CompHintSlash          string // key hint footer under the slash-command menu
+	CompHintFile           string // key hint footer under the @ file/resource menu
+	MouseCopiedHint        string // transient status-line hint after a mouse/Ctrl+C selection copy
+	MouseCaptureOnHint     string // "/mouse" turned in-app mouse handling back on
+	MouseCaptureOffHint    string // "/mouse" released mouse capture to the terminal
+	MouseCaptureTag        string // persistent status-line marker while mouse capture is off
+	MouseCaptureInlineHint string // "/mouse" under the inline renderer: the terminal already owns the mouse
 
 	// shell execution (! prefix).
 	ShellExecEmpty      string // bare "!" with no command

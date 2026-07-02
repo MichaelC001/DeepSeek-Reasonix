@@ -164,6 +164,7 @@ var Chinese = Messages{
 	MouseCaptureOnHint:           "鼠标接管已开启 — 应用内拖拽选中/滚动条/滚轮生效",
 	MouseCaptureOffHint:          "鼠标接管已关闭 — 由终端原生处理选中和右键菜单",
 	MouseCaptureTag:              "终端原生鼠标",
+	MouseCaptureInlineHint:       "内联渲染模式 — 选中/右键/滚动本就由终端原生处理",
 
 	ShellExecEmpty:      "用法：!<命令>  （例如 !ls -la）",
 	ShellExecFailedFmt:  "Shell 命令执行失败：%v",
@@ -198,7 +199,7 @@ var Chinese = Messages{
 	CmdDiffFold:         "切换 diff 折叠/展开",
 	CmdSandbox:          "查看沙箱状态",
 	CmdEffort:           "设置推理强度",
-	CmdMouse:            "切换鼠标接管（关闭后由终端原生处理选中/右键）",
+	CmdMouse:            "切换鼠标接管（全屏渲染模式；关闭后由终端原生处理选中/右键）",
 	CmdAutoPlan:         "配置自动计划模式",
 	CmdReasonLang:       "设置可见思考语言",
 	CmdMemoryV5:         "切换 Memory v5",

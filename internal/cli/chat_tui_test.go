@@ -226,6 +226,40 @@ func TestInlineActivityShowsStreamingTails(t *testing.T) {
 	}
 }
 
+func TestToggleMouseCaptureInlineIsInformational(t *testing.T) {
+	m := newTestChatTUI()
+	m.nativeScrollback = true
+
+	m.toggleMouseCapture()
+	if m.mouseCaptureOff {
+		t.Fatal("inline renderer has no mouse capture to turn off; /mouse must not flip state")
+	}
+	if got := strings.Join(*m.pendingCommit, "\n"); !strings.Contains(got, i18n.M.MouseCaptureInlineHint) {
+		t.Fatalf("inline /mouse should explain that the terminal owns the mouse, got %q", got)
+	}
+	if tag := m.mouseTag(); tag != "" {
+		t.Fatalf("inline renderer should not show a mouse status tag, got %q", tag)
+	}
+}
+
+func TestSlashClsInlineClearsScreen(t *testing.T) {
+	m := newTestChatTUI()
+	m.nativeScrollback = true
+	m.width = 80
+
+	if cmd := m.runSlashCommand("/cls"); cmd == nil {
+		t.Fatal("inline /cls should return a clear-screen command")
+	}
+	if got := strings.Join(*m.pendingCommit, "\n"); !strings.Contains(got, "Reasonix") && !strings.Contains(got, m.label) {
+		t.Fatalf("inline /cls should queue a fresh banner for scrollback, got %q", got)
+	}
+
+	m.nativeScrollback = false
+	if cmd := m.runSlashCommand("/cls"); cmd != nil {
+		t.Fatal("fullscreen /cls repaints via the viewport and should not emit an extra command")
+	}
+}
+
 func TestInlineActivityShowsToolTail(t *testing.T) {
 	m := newTestChatTUI()
 	m.nativeScrollback = true

@@ -154,6 +154,7 @@ var ChineseTraditional = Messages{
 	MouseCaptureOnHint:           "滑鼠接管已開啟 — 應用內拖拽選取/捲軸/滾輪生效",
 	MouseCaptureOffHint:          "滑鼠接管已關閉 — 由終端原生處理選取與右鍵選單",
 	MouseCaptureTag:              "終端原生滑鼠",
+	MouseCaptureInlineHint:       "行內渲染模式 — 選取/右鍵/捲動本就由終端原生處理",
 
 	ShellExecEmpty:      "用法：!<命令>  （例如 !ls -la）",
 	ShellExecFailedFmt:  "Shell 命令執行失敗：%v",
@@ -184,7 +185,7 @@ var ChineseTraditional = Messages{
 	CmdReloadCmd:        "重載自定義命令",
 	CmdSandbox:          "檢視沙箱狀態",
 	CmdEffort:           "設定推理強度",
-	CmdMouse:            "切換滑鼠接管（關閉後由終端原生處理選取/右鍵）",
+	CmdMouse:            "切換滑鼠接管（全螢幕渲染模式；關閉後由終端原生處理選取/右鍵）",
 	CmdAutoPlan:         "設定自動計畫模式",
 	CmdReasonLang:       "設定可見思考語言",
 	CmdMemoryV5:         "切換 Memory v5",

@@ -2725,6 +2725,9 @@ func (m chatTUI) effortTag() string {
 // the loss of in-app scrollbar/wheel-scroll/drag-select reads as a deliberate
 // state rather than a bug the user has to guess at.
 func (m chatTUI) mouseTag() string {
+	if m.nativeScrollback {
+		return "" // inline: the terminal always owns the mouse; a tag would be noise
+	}
 	if !m.mouseCaptureOff {
 		return ""
 	}
@@ -3133,6 +3136,13 @@ func (m *chatTUI) toggleVerboseReasoning(notify bool) {
 // drag in flight so a stale one can't be found mid-gesture once the terminal
 // starts intercepting the events that would have finished it.
 func (m *chatTUI) toggleMouseCapture() {
+	if m.nativeScrollback {
+		// Inline renderer: mouse capture is never enabled, so the terminal
+		// already handles selection, right-click, and wheel natively — there
+		// is nothing to toggle.
+		m.notice(i18n.M.MouseCaptureInlineHint)
+		return
+	}
 	m.mouseCaptureOff = !m.mouseCaptureOff
 	m.sel = selection{}
 	m.scrollbarDrag = false
@@ -3475,6 +3485,12 @@ func (m *chatTUI) runSlashCommand(input string) tea.Cmd {
 		m.transcriptDirty = true
 		m.forceGotoBottom = true
 		m.notice(i18n.M.SlashClsDone)
+		if m.nativeScrollback {
+			// Inline: the transcript lives in the terminal's buffer, so "clear
+			// the visible transcript" means clearing the screen; the banner
+			// queued above reprints beneath and older scrollback stays above.
+			return tea.ClearScreen
+		}
 	case "/resume":
 		m.runResumeCommand(input)
 	case "/rename":

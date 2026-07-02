@@ -163,6 +163,7 @@ var English = Messages{
 	MouseCaptureOnHint:           "mouse capture on — in-app drag-select/scrollbar/wheel active",
 	MouseCaptureOffHint:          "mouse capture off — your terminal now handles selection and right-click",
 	MouseCaptureTag:              "native mouse",
+	MouseCaptureInlineHint:       "inline renderer — your terminal already handles selection, right-click, and scrolling",
 
 	ShellExecEmpty:      "usage: !<command>  (e.g. !ls -la)",
 	ShellExecFailedFmt:  "shell command failed: %v",
@@ -197,7 +198,7 @@ var English = Messages{
 	CmdDiffFold:         "toggle diff fold/expand",
 	CmdSandbox:          "show sandbox status",
 	CmdEffort:           "set reasoning effort",
-	CmdMouse:            "toggle in-app mouse capture (off = native terminal selection/right-click)",
+	CmdMouse:            "toggle in-app mouse capture (fullscreen renderer; off = native terminal selection/right-click)",
 	CmdAutoPlan:         "configure automatic plan mode",
 	CmdReasonLang:       "set visible reasoning language",
 	CmdMemoryV5:         "toggle Memory v5",
