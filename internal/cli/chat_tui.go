@@ -518,7 +518,7 @@ func newChatTUI(ctrl control.SessionAPI, missing string, eventCh chan event.Even
 		pendingCommit:        &commitBuf,
 		renderer:             newMarkdownRenderer(renderW),
 		diffMaxLines:         diffFoldLimit,
-		showReasoning:        nativeScrollback,
+		showReasoning:        detectTermuxTerminal(), // Termux keeps its expanded default; elsewhere cfg.UI.ShowReasoning (applied by chatREPL) decides
 		shellOutputs:         make(map[string]string),
 		shellExpanded:        make(map[string]bool),
 		shellTranscriptIdx:   make(map[string]int),

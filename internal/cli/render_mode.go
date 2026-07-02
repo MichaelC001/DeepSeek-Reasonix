@@ -10,9 +10,9 @@ import (
 // terminal's own scrollback (Claude Code-style: the terminal keeps native
 // selection, right-click, wheel scrolling, and search), repainting only a
 // pinned bottom region. Fullscreen owns the whole grid via the alt screen with
-// an in-app viewport, scrollbar, and mouse capture. Auto is the historical
-// behavior: inline on Termux (touch-first, soft-keyboard focus), fullscreen
-// everywhere else.
+// an in-app viewport, scrollbar, and mouse capture. Auto resolves to inline —
+// the default since the inline renderer reached feature parity (streaming
+// answers, live reasoning/tool tails).
 const (
 	renderModeAuto       = "auto"
 	renderModeInline     = "inline"
@@ -36,11 +36,12 @@ func renderModeInlineActive() bool {
 	return autoRenderModeInline()
 }
 
-// autoRenderModeInline is the "auto" policy: Termux needs the normal buffer so
-// native touch scrollback and soft-keyboard focus keep working; other
-// terminals keep the fullscreen viewport.
+// autoRenderModeInline is the "auto" policy: inline everywhere. The terminal
+// keeps native selection, right-click, wheel, and search over the transcript —
+// the Claude Code default interaction model. The fullscreen viewport remains a
+// deliberate choice via --renderer/REASONIX_RENDERER/ui.renderer.
 func autoRenderModeInline() bool {
-	return detectTermuxTerminal()
+	return true
 }
 
 // resolveRenderMode picks the renderer with precedence flag > $REASONIX_RENDERER

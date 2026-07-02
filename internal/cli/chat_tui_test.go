@@ -34,6 +34,12 @@ const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42
 func TestMain(m *testing.M) {
 	old := detectTermuxTerminal
 	detectTermuxTerminal = func() bool { return false }
+	// Pin the fullscreen renderer as this binary's baseline: the pre-existing
+	// viewport/scrollbar/mouse assertions were written against it, and inline
+	// tests opt in explicitly via m.nativeScrollback = true. The default policy
+	// itself (auto → inline) is locked separately by render_mode_test.go, whose
+	// tests set and restore resolvedRenderMode themselves.
+	resolvedRenderMode = renderModeFullscreen
 
 	// Pin the UI language for the whole cli test binary. Production code
 	// (cli.Run) calls i18n.DetectLanguage("") which resolves the host locale from
@@ -289,7 +295,12 @@ func TestInlineActivityShowsToolTail(t *testing.T) {
 func TestTermuxNativeScrollbackDefaultsToExpandedReasoning(t *testing.T) {
 	old := detectTermuxTerminal
 	detectTermuxTerminal = func() bool { return true }
-	t.Cleanup(func() { detectTermuxTerminal = old })
+	oldMode := resolvedRenderMode
+	resolvedRenderMode = renderModeAuto // undo the TestMain fullscreen pin; auto is what real startup resolves
+	t.Cleanup(func() {
+		detectTermuxTerminal = old
+		resolvedRenderMode = oldMode
+	})
 
 	ctrl := control.New(control.Options{})
 	m := newChatTUI(ctrl, "", make(chan event.Event, 1), 80)

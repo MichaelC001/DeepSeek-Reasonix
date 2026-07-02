@@ -734,10 +734,14 @@ func chatREPL(args []string) int {
 }
 
 func prepareNativeScrollback(w io.Writer, rows int) {
-	// Clear the terminal's scrollback history so a reopened chat starts
-	// with a clean slate (Termux stays in the normal buffer, so prior
-	// output would otherwise remain visible above the banner).
-	fmt.Fprint(w, "\x1B[3J\x1B[2J\x1B[H")
+	// Termux only: clear the terminal's scrollback history so a reopened chat
+	// starts with a clean slate (prior app output would otherwise remain
+	// visible above the banner on the small screen). Everywhere else the whole
+	// point of the inline renderer is that the user's terminal history — their
+	// shell prompt included — stays intact above the session.
+	if detectTermuxTerminal() {
+		fmt.Fprint(w, "\x1B[3J\x1B[2J\x1B[H")
+	}
 	reserveNativeScrollbackFrame(w, rows)
 }
 

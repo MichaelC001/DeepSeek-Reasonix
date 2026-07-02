@@ -177,11 +177,25 @@ func TestReserveNativeScrollbackFrameWritesOnlyNewlines(t *testing.T) {
 	}
 }
 
-func TestPrepareNativeScrollbackClearsBeforeFrame(t *testing.T) {
+func TestPrepareNativeScrollbackClearsOnlyOnTermux(t *testing.T) {
+	old := detectTermuxTerminal
+	t.Cleanup(func() { detectTermuxTerminal = old })
+
+	// Termux: wipe scrollback for a clean slate, then reserve the frame.
+	detectTermuxTerminal = func() bool { return true }
 	var b bytes.Buffer
 	prepareNativeScrollback(&b, 2)
 	if got, want := b.String(), "\x1B[3J\x1B[2J\x1B[H\n\n"; got != want {
-		t.Fatalf("prepareNativeScrollback wrote %q, want %q", got, want)
+		t.Fatalf("prepareNativeScrollback (Termux) wrote %q, want %q", got, want)
+	}
+
+	// Everywhere else the user's terminal history must stay intact: the inline
+	// renderer only reserves rows for the pinned bottom region.
+	detectTermuxTerminal = func() bool { return false }
+	b.Reset()
+	prepareNativeScrollback(&b, 2)
+	if got, want := b.String(), "\n\n"; got != want {
+		t.Fatalf("prepareNativeScrollback (non-Termux) wrote %q, want %q", got, want)
 	}
 }
 

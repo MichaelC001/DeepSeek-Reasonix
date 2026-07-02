@@ -56,9 +56,9 @@ func TestRenderModeInlineActive(t *testing.T) {
 	}{
 		{name: "explicit inline ignores detection", mode: renderModeInline, termux: false, want: true},
 		{name: "explicit fullscreen ignores Termux", mode: renderModeFullscreen, termux: true, want: false},
-		{name: "auto follows Termux detection on", mode: renderModeAuto, termux: true, want: true},
-		{name: "auto follows Termux detection off", mode: renderModeAuto, termux: false, want: false},
-		{name: "unresolved behaves like auto", mode: "", termux: true, want: true},
+		{name: "auto is inline on Termux", mode: renderModeAuto, termux: true, want: true},
+		{name: "auto is inline everywhere else too", mode: renderModeAuto, termux: false, want: true},
+		{name: "unresolved behaves like auto", mode: "", termux: false, want: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resolvedRenderMode = tc.mode
