@@ -14,16 +14,19 @@ test("timing report separates queue, execution, wall time and selected stages", 
     { name: "desktop-browser-group (motion)", created_at: stamp(2), started_at: stamp(12), completed_at: stamp(32), conclusion: "success", steps: [
       { name: "Test desktop browser group", started_at: stamp(20), completed_at: stamp(30), conclusion: "success" },
     ] },
+    { name: "desktop-windows-go", created_at: stamp(3), started_at: stamp(4), completed_at: stamp(24), conclusion: "success", steps: [
+      { name: "test (Windows desktop and update helper)", started_at: stamp(8), completed_at: stamp(23), conclusion: "success" },
+    ] },
     { name: "skipped", created_at: stamp(1), conclusion: "skipped", steps: [] },
   ] };
   const report = timingReport(run, jobs);
   assert.equal(report.workflowElapsed, 32_000);
-  assert.equal(report.runnerSum, 40_000);
-  assert.equal(report.queueSum, 15_000);
-  assert.deepEqual(report.stages.map(stage => stage.kind), ["browser group", "frontend build", "dependency install"]);
+  assert.equal(report.runnerSum, 60_000);
+  assert.equal(report.queueSum, 16_000);
+  assert.deepEqual(report.stages.map(stage => stage.kind), ["browser group", "frontend build", "dependency install", "Go test"]);
   const markdown = timingMarkdown(report, "Measured CI timing");
   assert.match(markdown, /Total workflow wait: \*\*0m 32s\*\*/);
-  assert.match(markdown, /Sum of runner execution: \*\*0m 40s\*\*/);
+  assert.match(markdown, /Sum of runner execution: \*\*1m 00s\*\*/);
   assert.match(markdown, /Step durations exclude job queue time/);
 });
 

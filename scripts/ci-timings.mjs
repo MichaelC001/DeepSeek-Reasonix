@@ -20,6 +20,7 @@ function stageKind(job, step) {
   if (step === "Install browser runtimes") return "browser setup";
   if (/Build (stable|canary|memory) frontend/.test(step)) return "frontend build";
   if (job.startsWith("desktop-browser-group") && step === "Test desktop browser group") return "browser group";
+  if (job === "desktop-windows-go" && step === "test (Windows desktop and update helper)") return "Go test";
   if (job.startsWith("shard (") && step === "Run complete independent memory process") return "memory shard";
   return null;
 }

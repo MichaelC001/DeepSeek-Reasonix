@@ -536,7 +536,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        group: [app-settings, motion, transcript]
+        group: [app-settings-motion, transcript]
     defaults:
       run:
         working-directory: desktop
@@ -574,11 +574,9 @@ jobs:
           evidence="$RUNNER_TEMP/desktop-browser/$BROWSER_GROUP"
           mkdir -p "$evidence"
           case "$BROWSER_GROUP" in
-            app-settings)
+            app-settings-motion)
               PLAYWRIGHT_BROWSERS_PATH=.pw-browsers pnpm --dir frontend test:app-browser
               PLAYWRIGHT_BROWSERS_PATH=.pw-browsers REASONIX_SETTINGS_BROWSERS=chromium pnpm --dir frontend test:settings-browser
-              ;;
-            motion)
               pnpm --dir frontend test:motion-browser
               ;;
             transcript)
@@ -1168,8 +1166,8 @@ jobs:
             --pnpm-version "$(pnpm --version)"
 
       - name: test (Windows desktop and update helper)
-        # 17 minutes measured, ~11 of them before the first test runs; the
-        # budget stays above that so the job cap, not this step, ends a hang.
+        # Keep native Go output here. JSON mode forces verbose output into the
+        # test cache and spent 8-10 minutes finalizing it on Windows runners.
         timeout-minutes: 25
         run: go test ./...
 

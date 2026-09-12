@@ -19,12 +19,14 @@ workflow attempt, variant, build inputs, toolchain and every `dist` file hash.
 Linux, macOS and Windows consumers verify it before compilation or packaging.
 Explicit reuse fails on a missing, stale or damaged manifest and never falls
 back to a hidden rebuild. Static frontend files are portable; dependencies,
-native modules and Electron binaries are not shared.
+native modules and Electron binaries are not shared. Build-input verification
+streams every committed blob through one Git batch process instead of starting
+one process per file; the version-one digest remains byte-for-byte compatible.
 
 The protected `lint` job aggregates `lint-code` and, when selected, the
 complete `desktop-frontend` result. Motion unit tests remain in that frontend
-plan and run once. `desktop-browser-group` runs application/settings, motion
-and Transcript groups with `max-parallel: 2`; the `desktop-browser` summary
+plan and run once. `desktop-browser-group` runs application/settings/motion and
+Transcript as two groups with `max-parallel: 2`; the `desktop-browser` summary
 rejects failed, cancelled or unexpected skips. Go-only changes retain protocol
 and native validation without launching browser or memory work.
 
@@ -42,7 +44,10 @@ workflow wall time, recorded job queue time and the sum of runner execution.
 Frontend builds, dependency and browser installation, each browser group and
 each memory shard are listed separately. These measurements describe a single
 run; comparisons should use the same candidate and report the median and range
-of three runs so runner variance is visible.
+of three runs so runner variance is visible. The Windows Desktop Go step keeps
+native non-verbose output because Go's JSON mode made Windows spend several
+minutes finalizing verbose test-cache output; the central report records its
+step execution time from the Actions API without wrapping the test process.
 
 ## Memory screening
 

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createFrontendArtifact, verifyFrontendArtifact } from "./artifact-identity.mjs";
+import { buildInputIdentity, createFrontendArtifact, verifyFrontendArtifact } from "./artifact-identity.mjs";
 
 function fixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "reasonix-frontend-artifact-"));
@@ -32,6 +33,19 @@ test("matching artifact verifies across producer platforms", t => {
   assert.equal(verifyFrontendArtifact(options).sourceSHA, options.sourceSHA);
   writeFileSync(path.join(options.root, "desktop/frontend/src/App.tsx"), "export {}\r\n");
   assert.equal(verifyFrontendArtifact(options).sourceSHA, options.sourceSHA);
+});
+
+test("batched blob reads preserve the version-one input digest", t => {
+  const options = fixture(t);
+  const identity = buildInputIdentity(options.root);
+  const hash = createHash("sha256");
+  for (const name of identity.files) {
+    hash.update(name);
+    hash.update("\0");
+    hash.update(execFileSync("git", ["-C", options.root, "show", `HEAD:${name}`]));
+    hash.update("\0");
+  }
+  assert.equal(identity.sha256, hash.digest("hex"));
 });
 
 test("variant, workflow and toolchain identity mismatches fail", t => {

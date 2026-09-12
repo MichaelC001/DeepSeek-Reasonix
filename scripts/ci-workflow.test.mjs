@@ -140,6 +140,8 @@ test("browser matrix preserves five entry points and fails closed through deskto
   const groups = job(ci, "desktop-browser-group");
   assert.match(groups, /max-parallel: 2/);
   assert.match(groups, /fail-fast: false/);
+  assert.match(groups, /group: \[app-settings-motion, transcript\]/);
+  assert.doesNotMatch(groups, /group: \[app-settings, motion, transcript\]/);
   for (const command of ["test:app-browser", "test:settings-browser", "test:motion-browser", "test:transcript-browser", "test:transcript-reader-browser"])
     assert.equal(ci.match(new RegExp(`pnpm --dir frontend ${command}(?:\\s|$)`, "g"))?.length, 1, command);
   const summary = job(ci, "desktop-browser");
@@ -150,4 +152,12 @@ test("browser matrix preserves five entry points and fails closed through deskto
   for (const result of ["failure", "cancelled", "skipped", ""])
     assert.notEqual(run({ CHANGES_RESULT: "success", SHOULD_RUN: "true", PREPARE_RESULT: "success", GROUP_RESULT: result }), 0);
   assert.equal(run({ CHANGES_RESULT: "success", SHOULD_RUN: "false", PREPARE_RESULT: "success", GROUP_RESULT: "skipped" }), 0);
+});
+
+test("Windows desktop Go runs once without verbose JSON cache overhead", () => {
+  const windowsGo = job(ci, "desktop-windows-go");
+  assert.equal(windowsGo.match(/go test \.\/\.\.\./g)?.length, 1);
+  assert.doesNotMatch(windowsGo, /go test -json/);
+  assert.doesNotMatch(windowsGo, /go-test-timing/);
+  assert.doesNotMatch(windowsGo, /go test -run ['"]?\^\$/);
 });
