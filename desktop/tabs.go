@@ -148,7 +148,7 @@ type WorkspaceTab struct {
 
 	model            string // active model ref (for meta)
 	effort           *string
-	qualityFloor     string // standard|delivery; see desktop/quality_floor.go
+	qualityFloor     string // fixed standard compatibility value
 	mode             string // "normal" | "plan" | "yolo" | "plan-yolo"; yolo/full access is runtime-only
 	goal             string
 	toolApprovalMode string
@@ -721,7 +721,7 @@ func applyRuntimeTab(target, source *WorkspaceTab, path string, appCtx context.C
 	target.ActivityStatus = source.ActivityStatus
 	target.model = source.model
 	target.effort = cloneStringPtr(source.effort)
-	target.qualityFloor = source.qualityFloor
+	target.qualityFloor = control.QualityFloorStandard
 	target.mode = source.mode
 	target.goal = source.goal
 	target.toolApprovalMode = source.toolApprovalMode
@@ -5804,7 +5804,7 @@ func (a *App) tabSessionRecoveryMeta(tab *WorkspaceTab) func(control.SessionReco
 			TopicTitle:       topicTitle,
 			Model:            model,
 			AgentPreset:      currentTabAgentPreset(&WorkspaceTab{qualityFloor: qualityFloor}),
-			QualityFloor:     qualityFloor,
+			QualityFloor:     control.QualityFloorStandard,
 			TokenMode:        tokenMode,
 			Mode:             persistedTabMode(mode),
 			ToolApprovalMode: persistedToolApprovalMode(toolApprovalMode),
@@ -7126,15 +7126,11 @@ func (s tabRuntimeSnapshot) normalizedRuntime() normalizedTabRuntime {
 		goalStatus = s.ctrl.GoalStatus()
 	}
 
-	qualityFloor := s.qualityFloor
-	if qualityFloor == "" {
-		qualityFloor = tabQualityFloor(s.workspaceRoot, "")
-	}
 	runtime := normalizedTabRuntime{
 		collaborationMode: "normal",
 		toolApprovalMode:  approvalMode,
 		tokenMode:         boot.NormalizeTokenMode(s.tokenMode),
-		qualityFloor:      qualityFloor,
+		qualityFloor:      control.QualityFloorStandard,
 	}
 	switch {
 	case plan:
@@ -7407,7 +7403,7 @@ func (a *App) tabSessionMetaSnapshotForCurrentSession(tab *WorkspaceTab) (tabSes
 	topicID := tab.TopicID
 	topicTitle := tab.TopicTitle
 	tokenMode := currentTabTokenMode(tab)
-	qualityFloor := strings.TrimSpace(tab.qualityFloor)
+	qualityFloor := control.QualityFloorStandard
 	mode := normalizeTabMode(tab.mode)
 	toolApprovalMode := normalizeToolApprovalMode(tab.toolApprovalMode)
 	goal := strings.TrimSpace(tab.goal)
@@ -7428,7 +7424,6 @@ func (a *App) tabSessionMetaSnapshotForCurrentSession(tab *WorkspaceTab) (tabSes
 		activeWork = status.Running || status.PendingPrompt || status.BackgroundJobs > 0
 		mode = tabModeFromAxes(ctrl.PlanMode(), ctrl.AutoApproveTools())
 		toolApprovalMode = normalizeToolApprovalMode(ctrl.ToolApprovalMode())
-		qualityFloor = firstCtrlFloor(ctrl, qualityFloor)
 		if ctrl.GoalStatus() == control.GoalStatusRunning {
 			goal = strings.TrimSpace(ctrl.Goal())
 		} else {
@@ -7511,11 +7506,7 @@ func saveTabSessionMetaSnapshot(snap tabSessionMetaSnapshot) error {
 	m.WorkspaceRoot = workspaceRoot
 	m.TopicID = snap.topicID
 	m.TopicTitle = snap.topicTitle
-	delivery := strings.TrimSpace(snap.qualityFloor) == control.QualityFloorDelivery
-	m.QualityFloor, m.TokenMode, m.AgentPreset = "", boot.TokenModeFull, ""
-	if delivery {
-		m.QualityFloor, m.TokenMode, m.AgentPreset = control.QualityFloorDelivery, boot.TokenModeDelivery, boot.AgentPresetDelivery
-	}
+	m.QualityFloor, m.TokenMode, m.AgentPreset = control.QualityFloorStandard, boot.TokenModeFull, boot.AgentPresetStandard
 	m.Mode = persistedTabMode(snap.mode)
 	m.ToolApprovalMode = persistedToolApprovalMode(snap.toolApprovalMode)
 	m.Goal = strings.TrimSpace(snap.goal)
@@ -7551,6 +7542,7 @@ type tabSessionProfile struct {
 func defaultTabSessionProfile() tabSessionProfile {
 	return tabSessionProfile{
 		tokenMode:        boot.TokenModeFull,
+		qualityFloor:     control.QualityFloorStandard,
 		mode:             "normal",
 		toolApprovalMode: control.ToolApprovalAsk,
 	}
@@ -7558,19 +7550,9 @@ func defaultTabSessionProfile() tabSessionProfile {
 
 func tabSessionProfileFromMeta(sessionPath string, meta agent.BranchMeta) tabSessionProfile {
 	profile := defaultTabSessionProfile()
-	// Prefer agent_preset/quality_floor; fall back to legacy token_mode.
-	profile.tokenMode = boot.NormalizeTokenMode(meta.TokenMode)
-	if meta.AgentPreset != "" {
-		profile.tokenMode = boot.TokenModeFromAgentPreset(meta.AgentPreset)
-	}
-	switch {
-	case strings.TrimSpace(meta.QualityFloor) != "":
-		profile.qualityFloor = meta.QualityFloor
-	case boot.NormalizeTokenMode(meta.TokenMode) == boot.TokenModeDelivery || meta.AgentPreset == boot.AgentPresetDelivery:
-		profile.qualityFloor = control.QualityFloorDelivery
-	default:
-		profile.qualityFloor = control.QualityFloorStandard
-	}
+	// Retired role fields remain readable but no longer affect execution.
+	profile.tokenMode = boot.TokenModeFull
+	profile.qualityFloor = control.QualityFloorStandard
 	profile.mode = normalizeTabMode(meta.Mode)
 	profile.toolApprovalMode = normalizeToolApprovalMode(meta.ToolApprovalMode)
 	if profile.toolApprovalMode == control.ToolApprovalAsk && tabModeHasAutoApproveTools(meta.Mode) {

@@ -92,7 +92,6 @@ func (a *Agent) observeOutcomeShadow(receiptMark int, outcomes []toolOutcome) in
 	a.applyGovernor(&sample)
 	a.armGovernorCapture(sample)
 	event.RecordOutcomeProgress(a.svc.sink, sample)
-	a.observeContractRound()
 	return iv
 }
 
@@ -180,19 +179,4 @@ func progressGuardNoticeText() string {
 func (a *Agent) armLoopGuardPass(receiptMark int) {
 	a.turn.loopGuardArmed = true
 	a.turn.loopGuardReceiptMark = receiptMark
-}
-
-// loopGuardAllowsFinal reports whether final readiness should stand down: a
-// guard fired this user turn and no successful write or command receipt has
-// landed since. The missing receipts are exactly what the blocker prevents —
-// demanding them would restart the loop the guard broke — while bookkeeping
-// (ask, todo_write, complete_step) keeps the pass and real progress revokes it.
-func (a *Agent) loopGuardAllowsFinal() bool {
-	if a == nil || !a.turn.loopGuardArmed {
-		return false
-	}
-	if a.task.ledger == nil {
-		return true
-	}
-	return !a.task.ledger.HasWriteOrCommandSince(a.turn.loopGuardReceiptMark)
 }

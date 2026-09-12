@@ -223,9 +223,6 @@ func TestSaveTabsPersistsNonBalancedTokenModes(t *testing.T) {
 			t.Fatalf("tabs len = %d, want 1", len(got.Tabs))
 		}
 		wantToken, wantPreset := boot.TokenModeFull, boot.AgentPresetStandard
-		if inMemory == "delivery" {
-			wantToken, wantPreset = boot.TokenModeDelivery, boot.AgentPresetDelivery
-		}
 		if got.Tabs[0].TokenMode != wantToken || got.Tabs[0].AgentPreset != wantPreset {
 			t.Fatalf("saved compat after in-memory %q = token:%q preset:%q, want %q/%q",
 				inMemory, got.Tabs[0].TokenMode, got.Tabs[0].AgentPreset, wantToken, wantPreset)

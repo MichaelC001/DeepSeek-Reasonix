@@ -155,93 +155,6 @@
       }
     },
     {
-      "name": "complete_step",
-      "description": "Record the completion of ONE step of an approved plan. Call it as you finish each step so the task list advances and the user sees what changed. Cite proof by RECEIPT ID: every tool result ends with the host's own id (`[receipt r_1a2b3c4d]`), and listing those ids in `receipt_ids` is exact — retyping a command instead makes the host match your text, which fails over a `cd` prefix, quoting, or argument order. For ordinary work the host has already recorded what your tools did, so anything it cannot confirm is reported alongside the sign-off rather than rejected; under a delivery floor the proof is still required. Fields: `step_id` or `step` (which task-list item), `result` (what is now true/changed), `receipt_ids` (preferred proof), `evidence` (optional items, each with `kind` = verification|review|diff|files|manual and a `summary`, plus optional `command`/`paths`, and `criterion_id` naming the acceptance criterion the proof satisfies), and optional `notes`.",
-      "parameters": {
-        "properties": {
-          "evidence": {
-            "description": "Proof the step is done. Optional for ordinary work — the host already recorded what your tools did; required when the run is under a delivery floor.",
-            "items": {
-              "properties": {
-                "command": {
-                  "description": "REQUIRED for verification evidence: the command as it actually ran (e.g. \"go test ./...\") — it is checked against this session's real command history.",
-                  "type": "string"
-                },
-                "criterion_id": {
-                  "description": "The acceptance criterion this proof satisfies, as the plan renders it (e.g. \"c2\" from \"accept [c2]: ...\"). Cite it whenever the step has criteria: a command succeeding is not the same as a criterion being met, and the host records the proof against the criterion you name.",
-                  "type": "string"
-                },
-                "kind": {
-                  "description": "verification = a command/test was run (command REQUIRED); review = a built-in review run completed and, after changes, inspected the latest changed result (the verdict/findings still apply separately); diff = a concrete code change (paths REQUIRED); files = files created/edited/inspected (paths REQUIRED); manual = a manual check.",
-                  "enum": [
-                    "verification",
-                    "review",
-                    "diff",
-                    "files",
-                    "manual"
-                  ],
-                  "type": "string"
-                },
-                "paths": {
-                  "description": "REQUIRED for diff/files evidence: the files this evidence refers to, as the paths were passed to the tools that touched them.",
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "summary": {
-                  "description": "The evidence itself: the test result, what the diff does, or what was confirmed.",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "summary"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "notes": {
-            "description": "Optional caveats, follow-ups, or anything deferred.",
-            "type": "string"
-          },
-          "operation_id": {
-            "description": "The host operation whose receipts are being cited. Required when citing runtime-issued receipts so evidence from another change cannot satisfy this step.",
-            "type": "string"
-          },
-          "receipt_ids": {
-            "description": "PREFERRED proof: the host receipt ids printed after the tool calls that did the work (e.g. \"r_1a2b3c4d\"). Citing an id is exact — the host issued it — so shell prefixes, quoting, argument order, and working directory never matter. Use these instead of retyping a command.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "result": {
-            "description": "What is now true or changed as a result of finishing this step.",
-            "type": "string"
-          },
-          "step": {
-            "description": "Which plan step this completes — its title or number, matching the task list. Use only when the item has no step_id.",
-            "type": "string"
-          },
-          "step_id": {
-            "description": "PREFERRED: the stable step_id of the task-list item this completes, e.g. \"plan_step_02\". Unlike a title or a number it survives retitles, insertions, and reordering, so cite it whenever the item has one.",
-            "type": "string"
-          },
-          "step_index": {
-            "description": "Optional 1-based task-list item number. Use only when the item has no step_id; an index goes stale the moment a step is inserted above it.",
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "result"
-        ],
-        "type": "object"
-      }
-    },
-    {
       "name": "compress",
       "description": "Compress a selected part of the current model-visible conversation without deleting visible history. Use only when the user explicitly asks for context compression. Choose `before` to summarize everything before the uniquely matched user turn while keeping that turn and later context, or `after` to summarize from that turn through the last completed turn while keeping the active turn. The anchor must be an exact, unique excerpt from a real user message; use a longer excerpt if the tool reports multiple matches.",
       "parameters": {
@@ -361,7 +274,7 @@
     },
     {
       "name": "todo_write",
-      "description": "Record and update a structured task list for the current work. Send the COMPLETE list every call — it replaces the previous one. Use it to plan multi-step work and show progress: keep exactly one item in_progress at a time, and flip an item to completed the moment it's done (don't batch completions). Skip it for trivial single-step tasks. The list is two-level: a `level` 0 item is a PHASE (a milestone) and the `level` 1 items after it are its concrete sub-steps; omit `level` (0) for a flat list. Each item has `content` (imperative, e.g. \"Add the parser\"), `status` (pending|in_progress|completed), `activeForm` (present-continuous shown while in progress, e.g. \"Adding the parser\"), optional `level` (0 phase | 1 sub-step), and `step_id` — an item's stable identity. COPY `step_id` VERBATIM for every item that already has one: it is how a completion stays attached to its step when you retitle it, insert a step above it, or reorder the list. Give a new item a fresh unique id (e.g. \"plan_step_07\"); never reuse or renumber an existing one.",
+      "description": "Record and update a structured task list for the current work. Send the COMPLETE list every call — it replaces the previous one. Use it to plan multi-step work and show progress: update item states to reflect actual progress. Skip it for trivial single-step tasks. The list is two-level: a `level` 0 item is a PHASE (a milestone) and the `level` 1 items after it are its concrete sub-steps; omit `level` (0) for a flat list. Each item has `content` (imperative, e.g. \"Add the parser\"), `status` (pending|in_progress|completed), `activeForm` (present-continuous shown while in progress, e.g. \"Adding the parser\"), optional `level` (0 phase | 1 sub-step), and `step_id` — an item's stable identity. COPY `step_id` VERBATIM for every item that already has one: it is how a completion stays attached to its step when you retitle it, insert a step above it, or reorder the list. Give a new item a fresh unique id (e.g. \"plan_step_07\"); never reuse or renumber an existing one.",
       "parameters": {
         "properties": {
           "todos": {
@@ -385,7 +298,7 @@
                   "type": "integer"
                 },
                 "status": {
-                  "description": "Task state. Keep at most one in_progress.",
+                  "description": "Model-reported task state.",
                   "enum": [
                     "pending",
                     "in_progress",
@@ -415,7 +328,7 @@
     },
     {
       "name": "update_goal",
-      "description": "Report this turn's disposition for the active goal. Call it at the end of every goal turn instead of using prose markers: `continue` (work is ongoing — give a concrete next_action), `complete` (the request is fully done, output format and constraints satisfied, and verification was attempted or reported unavailable), or `blocked` (only the user can unblock: missing user-only information, an irreversible/externally visible operation, or changed scope). The host validates your claim against Delivery acceptance criteria and decides whether to continue automatically. Fields: `status` (required, one of continue|complete|blocked), `reason` (required for continue and blocked, optional for complete), `next_action` (optional concrete next step; recommended for continue), `completion` (recommended with complete: `verified` is checked against real receipts, while `unverified` and `risks` are yours to declare and never count against you).",
+      "description": "Report the active goal status: continue (work remains), complete (you judge the goal complete), or blocked (explain why work cannot continue). The host commits this model declaration at normal turn end, subject to cancellation and resource limits. A missing report keeps the goal active. completion is your account of verified commands, unverified work, and risks; it does not change actual execution records or certify success.",
       "parameters": {
         "properties": {
           "completion": {
@@ -454,7 +367,7 @@
             "type": "string"
           },
           "status": {
-            "description": "continue = keep working autonomously; complete = the goal is fully done and verified; blocked = only the user can unblock.",
+            "description": "continue = keep working autonomously; complete = you judge the goal complete; blocked = work cannot continue.",
             "enum": [
               "continue",
               "complete",

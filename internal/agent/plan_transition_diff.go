@@ -65,9 +65,8 @@ func (a *Agent) recoveryProposal(plan *toolCallPlan, episodeID, subject, preview
 		// The existing rule asks whether a retry drifts from the call that
 		// failed. This asks the question the user actually approved an answer
 		// to: is this write outside the plan they agreed on.
-		ExpandedScope: plan.effects.StateMutation && a.mutationEscapesPlan(plan.evidenceName, plan.evidenceArgs),
-		PlanBefore:    plan.planBefore,
-		PlanAfter:     plan.planAfter,
-		PlanDiff:      plan.planDiff,
+		PlanBefore: plan.planBefore,
+		PlanAfter:  plan.planAfter,
+		PlanDiff:   plan.planDiff,
 	}
 }

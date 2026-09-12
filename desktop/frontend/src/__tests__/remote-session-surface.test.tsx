@@ -175,7 +175,6 @@ const desktopStub = installDesktopHostStub(({ main: { App: {
   },
   async SetRemoteTabQualityFloor(tabId: string, floor: string) {
     tape.push(`quality-floor:${tabId}:${floor}`);
-    statusQualityFloor = floor === "delivery" ? "delivery" : "standard";
   },
   async PauseRemoteTabGoal(tabId: string) {
     tape.push(`pause-goal:${tabId}`);
@@ -598,6 +597,7 @@ await act(async () => {
 });
 const metadataGeneration = probe?.surfaceGeneration;
 statusGoalStatus = "complete";
+statusQualityFloor = "delivery"; // Simulate an older server that still reports its real policy.
 await act(async () => {
   await probe?.setModel("remote/new-model");
   await probe?.setEffort("high");
@@ -610,7 +610,7 @@ await act(async () => {
 });
 ok(probe?.surfaceGeneration === metadataGeneration, "metadata-only remote commands preserve the transcript generation and viewport");
 ok(probe?.composerProfile?.goalStatus === "complete" && probe.composerProfile.qualityFloor === "delivery",
-  "status-only refresh updates goal status and quality floor");
+  "status-only refresh preserves an older server's reported policy");
 ok(probe?.modelLabel === "Model · remote/new-model" && probe.effort?.current === "high",
   "model switching refreshes the authoritative remote profile before the next turn");
 for (const want of [

@@ -238,7 +238,7 @@ reasonix run "运行测试" --output-format stream-json
 继续进入工具循环；真正的空响应会在 frozen request 边界重试。旧的
 `completion_validation`、`completion_evaluator_model` 和
 `REASONIX_COMPLETION_VALIDATION_MODE` 设置仍可读取，但会被忽略，配置渲染器也不再生成；
-主机侧的就绪检查、预算、工具安全边界和恢复边界仍然有效。
+显式预算、工具安全边界和协议恢复边界仍然有效。Goal 完成是模型声明，不再执行宿主质量门禁或独立 evaluator。详见[迁移说明](EXECUTION_MODEL_SIMPLIFICATION.md)。
 
 ### 脱敏机器接口
 
@@ -418,7 +418,6 @@ SSH 下远端进程无法读取本机剪贴板，请使用终端粘贴快捷键�
 | `/paste-image` | 读取剪贴板图片并插入可编辑的附件标记。 |
 | `/mouse` | 切换应用内鼠标选区、滚动条和滚轮处理；SSH 会话默认关闭接管，保证终端原生选区可用。 |
 | `/effort` | 查看或切换 reasoning effort。 |
-| `/preset [standard\|delivery]` | 切换会话质量底线；delivery 开启交付级完成门槛，并在状态栏显示 PRESET 标记。 |
 | `/output-style` | 选择回答风格。 |
 | `/verbose` | 切换详细 reasoning 显示。 |
 | `/sandbox` | 查看沙盒状态。 |
@@ -434,8 +433,11 @@ SSH 下远端进程无法读取本机剪贴板，请使用终端粘贴快捷键�
 
 切换模型或 effort 会重建运行时，同时保留当前对话、会话级权限覆盖、附加目录
 访问权限和 session ownership。`/reload` 使用同一套失败原子重建语义。
-普通请求一律进入 executor，没有自动任务模式。唯一的会话角色是质量底线：standard（默认）或 delivery；事实仍可能高于它。
+普通请求一律进入 executor，没有自动任务模式或可选质量底线，统一采用标准执行行为。
 独立 Planner 只响应显式 Plan、批准边界和 Goal 启动。
+
+`/preset`、`/work-mode` 与 `/profile` 仅作为隐藏兼容命令保留。已知旧值会被接受，
+提示该设置已退役，并保持标准执行；未知值仍会报错。
 
 用量统计使用独立的可丢弃 rollup 投影：
 reasonix catalogs reindex usage [--json]

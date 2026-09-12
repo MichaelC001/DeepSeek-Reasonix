@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"errors"
 	"strings"
 
 	"reasonix/internal/provider"
@@ -58,26 +57,4 @@ func updateGoalResultsExactlyMatch(calls []provider.ToolCall, results []provider
 		seen[call.ID] = struct{}{}
 	}
 	return true
-}
-
-// salvageReadinessExhaustedAnswer preserves completed writes as unverified.
-// It requires a current visible answer and refuses claim-only and typed-report
-// runs; the parent still verifies the merged mutation receipts.
-func salvageReadinessExhaustedAnswer(sub *Agent, sess *Session, opts Options, err error) (string, bool) {
-	var readinessErr *FinalReadinessError
-	if !errors.As(err, &readinessErr) || opts.RequireReviewReportKind != "" {
-		return "", false
-	}
-	if sub == nil || !sub.EvidenceSummary().HasMutation() {
-		return "", false
-	}
-	answer := currentFinalAssistantAnswer(sess)
-	if answer == "" {
-		return "", false
-	}
-	return "[unverified] The sub-agent finished its work but exhausted the host delivery sign-off checks before reporting (" +
-		readinessErr.Reason +
-		"). Its successful writes are already on disk and its receipts were merged into this turn's evidence. " +
-		"Inspect the diff and run the relevant checks before relying on the result below; do not re-run or \"fix\" the same work without first checking what already changed.\n\nSub-agent answer:\n" +
-		answer, true
 }

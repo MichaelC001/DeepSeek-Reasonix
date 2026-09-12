@@ -1,29 +1,21 @@
 package builtin
 
 import (
-	"context"
 	"encoding/json"
-	"strings"
-	"testing"
-
 	"reasonix/internal/evidence"
+	"reasonix/internal/instruction"
+	"testing"
 )
 
-func TestCompleteStepVerificationWithoutCommandSuggestsOtherKinds(t *testing.T) {
-	ctx := evidence.WithLedger(context.Background(), evidence.NewLedger())
-	ctx = evidence.WithClosedLoopExecution(ctx)
-	_, err := completeStep{}.Execute(ctx, json.RawMessage(`{
-		"step":"Remove debug files",
-		"result":"debug files removed from git",
-		"evidence":[{"kind":"verification","summary":"git commit abc123 updated .gitignore"}]
-	}`))
-	if err == nil {
-		t.Fatal("verification evidence without a command should be rejected")
+func TestCompleteStepProjectChecksRemainInstructions(t *testing.T) {
+	ledger := evidence.NewLedger()
+	ledger.Record(evidence.Receipt{ToolName: "edit_file", Paths: []string{"main.go"}, Write: true, Mutation: true, Success: true})
+	ctx := evidence.WithLedger(declaredStepContext(evidence.TodoItem{Content: "implement", Status: "in_progress"}), ledger)
+	ctx = instruction.WithChecks(ctx, []instruction.VerifyCheck{{Command: "go test ./...", SourcePath: "AGENTS.md"}})
+	if _, err := (completeStep{}).Execute(ctx, json.RawMessage(`{"step":"implement","result":"done"}`)); err != nil {
+		t.Fatal(err)
 	}
-	got := err.Error()
-	for _, want := range []string{"verification command is required", `"files"`, `"diff"`, `"manual"`} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("error %q missing %q", got, want)
-		}
+	if ledger.HasSuccessfulCommand("go test ./...") {
+		t.Fatal("missing project check was fabricated")
 	}
 }

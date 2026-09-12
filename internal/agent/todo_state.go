@@ -48,47 +48,6 @@ func (a *Agent) CurrentTaskTodoState() []evidence.TodoItem {
 	return append([]evidence.TodoItem(nil), todos...)
 }
 
-// consumeTodoOnlyReadinessMarkerIfResolved retires a pending final-readiness
-// marker whose only gap was unfinished todos once the canonical list shows
-// every item completed, so a reload no longer replays the stale wrap-up card.
-// In-turn consumption stays with beginFinalReadinessRecovery (next user turn).
-func (a *Agent) consumeTodoOnlyReadinessMarkerIfResolved() {
-	if a == nil || a.sess.conversation == nil {
-		return
-	}
-	a.sess.todoMu.Lock()
-	state := append([]evidence.TodoItem(nil), a.sess.todoState...)
-	a.sess.todoMu.Unlock()
-	if len(state) == 0 || len(evidence.IncompleteTodos(state)) > 0 {
-		return
-	}
-	marker := a.pendingFinalReadinessRecovery()
-	if marker == nil || len(marker.Missing) == 0 {
-		return
-	}
-	for _, id := range marker.Missing {
-		if id != "todo" {
-			return
-		}
-	}
-	a.sess.conversation.ConsumeFinalReadinessRecovery()
-}
-
-func (a *Agent) incompleteCanonicalTodos() ([]evidence.TodoStepMatch, bool) {
-	a.sess.todoMu.Lock()
-	defer a.sess.todoMu.Unlock()
-	if len(a.sess.todoState) == 0 {
-		return nil, false
-	}
-	return evidence.IncompleteTodos(a.sess.todoState), true
-}
-
-func (a *Agent) hasIncompleteCanonicalCriteria() bool {
-	a.sess.todoMu.Lock()
-	defer a.sess.todoMu.Unlock()
-	return len(a.sess.todoState) > 0 && len(evidence.IncompleteTodos(a.sess.todoState)) > 0
-}
-
 // recordTodoState logs the host-advanced list as a synthetic todo_write receipt
 // so the per-turn final gate (which reads the ledger's latest todo_write) sees
 // the advance — the model no longer has to re-send a todo_write to mark the

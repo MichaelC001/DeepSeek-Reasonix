@@ -189,9 +189,9 @@ check-result cards follow actual running verification tools, not phase names.
 
 | Phase | Emitted when | `capability_phases` bucket |
 | --- | --- | --- |
-| `working` | the turn starts, after each tool batch returns, and after the final-readiness check | `ProviderWaitMs` |
+| `working` | the turn starts, after each tool batch returns, after model generation | `ProviderWaitMs` |
 | `checking` | a tool batch is about to execute | `ToolExecMs` |
-| `verifying` | the final-readiness check runs before a final answer | `ToolExecMs` |
+| `verifying` | an actual verification tool runs | `ToolExecMs` |
 
 A phase is billed to its bucket when the next phase opens, so the durations in
 `--metrics` split a turn into model wait versus tool execution without replaying
@@ -269,8 +269,9 @@ calls ends the turn directly; a response with tools continues through the tool
 loop, and a truly empty response is retried at the frozen-request boundary.
 Legacy `completion_validation`, `completion_evaluator_model`, and
 `REASONIX_COMPLETION_VALIDATION_MODE` settings remain readable but are ignored
-and are no longer emitted by the config renderer. Host-owned readiness, budget,
-tool-safety, and recovery boundaries remain active.
+and are no longer emitted by the config renderer. Explicit budgets, tool-safety and protocol recovery boundaries remain active.
+Goal completion is a model declaration; no host quality gate or independent
+Goal evaluator runs. See [migration details](EXECUTION_MODEL_SIMPLIFICATION.md).
 
 ### Redacted machine interfaces
 
@@ -486,12 +487,11 @@ the displayed list matches the commands the TUI accepts.
 | `/paste-image` | Read a clipboard image and insert an editable attachment token. |
 | `/mouse` | Toggle in-app mouse selection, scrollbar, and wheel handling; SSH sessions start with capture off so the terminal's native selection works. |
 | `/effort` | View or change reasoning effort. |
-| `/preset [standard\|delivery]` | Switch the session quality floor; delivery turns on delivery completion gates and shows a PRESET tag in the status line. |
 | `/output-style` | Select an answer style. |
 | `/verbose` | Toggle expanded reasoning display. |
 | `/sandbox` | Inspect sandbox status. |
 | `/goal [objective]` | Start a continuous goal, or inspect its runtime statistics. |
-| `/goal status` | Show the active goal plus turns, requests, tokens, work time, and the last continuation/evaluator reason. |
+| `/goal status` | Show the active goal plus turns, requests, tokens, work time, and the last continuation reason. |
 | `/goal pause` | Pause the running goal (keeps todos, Delivery checkpoint, and runtime history). |
 | `/goal resume` | Resume a manually paused or genuinely blocked goal without changing a numeric quota. |
 | `/goal clear` | End goal mode permanently. |
@@ -509,6 +509,10 @@ active conversation, session-scoped permission overrides, additional directory
 access, and session ownership. `/reload` uses the same fail-atomic rebuild.
 Execution modes no longer exist: planning, verification, and review strength
 follow task risk per turn.
+
+`/preset`, `/work-mode`, and `/profile` remain hidden compatibility commands.
+Recognized legacy values are accepted, report that the setting is retired, and
+leave the session on standard execution; unknown values still return an error.
 
 ## Session catalog diagnostics
 

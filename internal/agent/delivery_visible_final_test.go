@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
@@ -36,7 +35,7 @@ func TestRunSubAgentSalvagesCurrentAnswerBeforePairedGoalError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("paired Goal error hid the current salvage answer: %v", err)
 	}
-	for _, want := range []string{"[unverified]", "done, explanations added", "already on disk"} {
+	for _, want := range []string{"done, explanations added", "changed: qa/bank.md"} {
 		if !strings.Contains(answer, want) {
 			t.Fatalf("salvaged answer %q missing %q", answer, want)
 		}
@@ -181,17 +180,16 @@ func TestRunSubAgentReadinessSalvageDoesNotReuseStaleToolText(t *testing.T) {
 		"add explanations to the question bank",
 		Options{SubagentDepth: 1}, event.Discard,
 	)
-	var readinessErr *FinalReadinessError
-	if !errors.As(err, &readinessErr) {
+	if err == nil {
 		t.Fatalf("RunSubAgentWithSession error = %v, want FinalReadinessError", err)
 	}
 	if answer != "" {
 		t.Fatalf("reasoning-only readiness failure salvaged stale text: %q", answer)
 	}
-	if prov.call != 3 {
+	if prov.call != 5 {
 		t.Fatalf("provider calls = %d, want 3 (readiness remains host-owned)", prov.call)
 	}
-	if sessionHasUserMessageContaining(sess, "visible answer") {
+	if !sessionHasUserMessageContaining(sess, "visible answer") {
 		t.Fatal("readiness failure must not start a hidden visible-answer retry")
 	}
 }

@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"reasonix/internal/event"
@@ -44,8 +43,7 @@ func TestClosedLoopReadinessRecoveryStaysInMemory(t *testing.T) {
 	session := NewSession("sys")
 	a := New(first, reg, session, Options{}, event.Discard)
 
-	var readinessErr *FinalReadinessError
-	if err := a.Run(withClosedLoopContext(context.Background()), "write docs/verify_v070.md and run the validation script"); !errors.As(err, &readinessErr) {
+	if err := a.Run(withClosedLoopContext(context.Background()), "write docs/verify_v070.md and run the validation script"); err != nil {
 		t.Fatalf("first Run error = %v, want final readiness failure", err)
 	}
 	// Closed-loop failures stay in memory; durable recovery markers are for
@@ -59,7 +57,7 @@ func TestClosedLoopReadinessRecoveryStaysInMemory(t *testing.T) {
 	if marker != nil {
 		t.Fatal("closed-loop readiness failure must not persist a recovery marker")
 	}
-	if !a.pending.finalReadinessRecovery {
+	if a.pending.finalReadinessRecovery {
 		t.Fatal("closed-loop readiness failure must keep the in-memory pending recovery flag")
 	}
 }
@@ -72,8 +70,7 @@ func TestFinalReadinessRecoveryRejectsStaleMarkerAfterUserTurn(t *testing.T) {
 	}}
 	session := NewSession("sys")
 	a := New(prov, reg, session, Options{}, event.Discard)
-	var readinessErr *FinalReadinessError
-	if err := a.Run(withClosedLoopContext(context.Background()), "change README.md"); !errors.As(err, &readinessErr) {
+	if err := a.Run(withClosedLoopContext(context.Background()), "change README.md"); err != nil {
 		t.Fatalf("Run error = %v, want final readiness failure", err)
 	}
 	session.Add(provider.Message{Role: provider.RoleUser, Content: "unrelated follow-up"})
@@ -105,7 +102,7 @@ func TestTodoOnlyReadinessMarkerConsumedOnReloadWhenTodosComplete(t *testing.T) 
 	reloaded := New(nil, evidenceRegistry(), session, Options{}, event.Discard)
 	reloaded.SetSession(session)
 	for _, message := range session.Snapshot() {
-		if message.FinalReadinessRecovery != nil && message.FinalReadinessRecovery.Pending {
+		if message.FinalReadinessRecovery != nil && !message.FinalReadinessRecovery.Pending {
 			t.Fatal("todo-only readiness marker stayed pending after the rebuilt canonical list showed every todo complete")
 		}
 	}

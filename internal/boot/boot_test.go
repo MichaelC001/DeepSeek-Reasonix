@@ -2017,8 +2017,8 @@ func TestNormalizeTokenModeSupportsRuntimeProfilesAndLegacyAliases(t *testing.T)
 		"eco":        TokenModeFull,
 		"light":      TokenModeFull,
 		"lite":       TokenModeFull,
-		"delivery":   TokenModeDelivery,
-		"quality":    TokenModeDelivery,
+		"delivery":   TokenModeFull,
+		"quality":    TokenModeFull,
 		"unexpected": TokenModeFull,
 	} {
 		if got := NormalizeTokenMode(input); got != want {
@@ -2032,7 +2032,7 @@ func TestNormalizeTokenModeSupportsRuntimeProfilesAndLegacyAliases(t *testing.T)
 		"balanced": AgentPresetStandard,
 		"economy":  AgentPresetStandard,
 		"light":    AgentPresetStandard,
-		"delivery": AgentPresetDelivery,
+		"delivery": AgentPresetStandard,
 	} {
 		if got := NormalizeAgentPreset(input); got != want {
 			t.Errorf("NormalizeAgentPreset(%q) = %q, want %q", input, got, want)
@@ -2303,7 +2303,6 @@ func unifiedBootToolNames() []string {
 		"ask",
 		"bash",
 		"bash_output",
-		"complete_step",
 		"compress",
 		"edit_file",
 		"kill_shell",

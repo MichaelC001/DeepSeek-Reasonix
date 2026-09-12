@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"reasonix/internal/agent"
-	"reasonix/internal/agentpreset"
 	"reasonix/internal/control"
 	"reasonix/internal/event"
 	"reasonix/internal/extension/uihub"
@@ -1517,26 +1516,19 @@ func (s *service) sessionSetConfigOption(ctx context.Context, raw json.RawMessag
 	if sess == nil {
 		return nil, &RPCError{Code: ErrInvalidParams, Message: "session/set_config_option: unknown session " + p.SessionID}
 	}
-	// The execution-mode options are now the session quality floor: light
-	// folds to standard silently, delivery sets the delivery floor.
+	// Retired execution-mode IDs remain accepted for old clients, but they are
+	// no longer advertised and never change the live controller.
 	if id := normalizeConfigID(p.ConfigID); id == "work_mode" || id == "agent_preset" || id == "quality_floor" {
 		if err := validateDeprecatedModeValue(p.Value); err != nil {
 			return nil, &RPCError{Code: ErrInvalidParams, Message: "session/set_config_option: " + err.Error()}
-		}
-		ctrl := sess.currentCtrl()
-		if ctrl != nil {
-			if p, err := agentpreset.Normalize(p.Value); err == nil {
-				if err := ctrl.SetQualityFloor(string(p)); err != nil {
-					return nil, &RPCError{Code: ErrInternal, Message: "session/set_config_option: " + err.Error()}
-				}
-			}
 		}
 		cfgState, err := s.configStateForSession(ctx, sess)
 		if err != nil {
 			return nil, &RPCError{Code: ErrInternal, Message: "session/set_config_option: " + err.Error()}
 		}
 		return SetSessionConfigOptionResult{
-			ConfigOptions: cfgState.ConfigOptions,
+			ConfigOptions:    cfgState.ConfigOptions,
+			DeprecatedNotice: "Execution modes have been retired; this setting is accepted for compatibility and uses standard execution.",
 		}, nil
 	}
 	cfgState, err := s.configStateForSession(ctx, sess)
@@ -2274,9 +2266,13 @@ func (s *service) sessionDir() string {
 
 func (s *service) sessionConfigState(ctx context.Context, p SessionConfigStateParams) (SessionConfigState, error) {
 	if provider, ok := s.factory.(SessionConfigStateProvider); ok {
-		return provider.SessionConfigState(ctx, p)
+		state, err := provider.SessionConfigState(ctx, p)
+		if err != nil {
+			return SessionConfigState{}, err
+		}
+		return withoutQualityFloorConfig(state), nil
 	}
-	return SessionConfigState{}, nil
+	return withoutQualityFloorConfig(SessionConfigState{}), nil
 }
 
 func (s *service) configStateForSession(ctx context.Context, sess *acpSession) (SessionConfigState, error) {
@@ -2288,7 +2284,7 @@ func (s *service) configStateForSession(ctx context.Context, sess *acpSession) (
 	// are discoverable on every config-state read, not only when current.
 	state = enrichStateWithExtensionModels(state, sess.currentCtrl().ProviderCatalog())
 	state = withToolApprovalConfig(state, sess.currentToolApprovalMode())
-	return withQualityFloorConfig(state, sess.currentQualityFloor()), nil
+	return withoutQualityFloorConfig(state), nil
 }
 
 func (s *acpSession) configStateParams() SessionConfigStateParams {

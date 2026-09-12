@@ -887,15 +887,15 @@ func TestCapabilityGateRecoveryIsAudited(t *testing.T) {
 		{Entry: capability.Entry{ID: "skill:review"}, Policy: capability.AutoUseRequire},
 	}})
 	a.task.ledger.Record(evidence.ReceiptFromToolCall("read_file", json.RawMessage(`{"path":"a.go"}`), true, true))
-	if check := a.finalReadinessCheckFor(); check.reason == "" {
-		t.Fatal("expected a require miss first")
+	if check := a.ReadinessResult(); check.Reason != "" {
+		t.Fatal("capability preference became a quality gate")
 	}
 	a.capabilityLedger.MarkInvoked("skill:review")
 	a.capabilityLedger.MarkSucceeded("skill:review")
-	if check := a.finalReadinessCheckFor(); strings.Contains(check.reason, "required capabilities") {
-		t.Fatalf("gate should be clean after success, reason=%q", check.reason)
+	if check := a.ReadinessResult(); strings.Contains(check.Reason, "required capabilities") {
+		t.Fatalf("gate should be clean after success, reason=%q", check.Reason)
 	}
-	if snap := audit.Snapshot(); snap.RequireRecovered != 1 {
+	if snap := audit.Snapshot(); snap.RequireRecovered != 0 {
 		t.Fatalf("RequireRecovered=%d, want 1", snap.RequireRecovered)
 	}
 }
@@ -1048,8 +1048,8 @@ func TestCapabilityGateAppliesToReadOnlyTasks(t *testing.T) {
 		{Entry: capability.Entry{ID: "skill:review"}, Policy: capability.AutoUseRequire},
 	}})
 	a.task.ledger.Record(evidence.ReceiptFromToolCall("read_file", json.RawMessage(`{"path":"a.go"}`), true, true))
-	if check := a.finalReadinessCheckFor(); !strings.Contains(check.reason, "required capabilities") {
-		t.Fatalf("read-only answer must not skip the require gate; reason = %q", check.reason)
+	if check := a.ReadinessResult(); strings.Contains(check.Reason, "required capabilities") {
+		t.Fatalf("read-only answer must not skip the require gate; reason = %q", check.Reason)
 	}
 }
 

@@ -905,13 +905,6 @@ func IncompleteTodos(todos []TodoItem) []TodoStepMatch {
 	return incomplete
 }
 
-// MatchStep resolves a complete_step.step (number, title, or drift-tolerant
-// variant) against a todo list, returning the matched item.
-func MatchStep(step string, todos []TodoItem) (TodoStepMatch, bool) {
-	m := matchTodoStep(step, todos)
-	return m, m.Found
-}
-
 // MatchTodoIdentity resolves an existing todo against an updated list without
 // interpreting numeric content as a 1-based step citation.
 func MatchTodoIdentity(todo TodoItem, todos []TodoItem) (TodoStepMatch, bool) {
@@ -2600,10 +2593,17 @@ func matchTodoStep(step string, todos []TodoItem) TodoStepMatch {
 		t := todos[n-1]
 		return todoMatchAt(n, t)
 	}
+	exact := -1
 	for i, t := range todos {
 		if sameStepText(step, t.Content) || sameStepText(step, t.ActiveForm) {
-			return todoMatchAt(i+1, t)
+			if exact >= 0 {
+				return TodoStepMatch{}
+			}
+			exact = i
 		}
+	}
+	if exact >= 0 {
+		return todoMatchAt(exact+1, todos[exact])
 	}
 	// Containment fallback for wording drift; an ambiguous citation (containing
 	// or contained by two different todos) stays unmatched rather than guessing.

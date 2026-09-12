@@ -2,12 +2,10 @@ package agent
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"reasonix/internal/evidence"
 	"reasonix/internal/provider"
-	"reasonix/internal/taskcontract"
 	"reasonix/internal/tool"
 )
 
@@ -40,19 +38,18 @@ func TestOrdinaryMutationSettlesOnTheRealResult(t *testing.T) {
 	}
 }
 
-func TestDeliveryMutationStaysOpenUntilVerified(t *testing.T) {
+func TestRetiredDeliveryMutationSettlesImmediately(t *testing.T) {
 	a, ledger := newEvidenceAgent(t, evidenceWriter{}, true)
-	a.turn.constraints.PolicyFloor = taskcontract.PolicyFloorDelivery
 	plan, rec := mutationPlanAndReceipt("internal/auth/login.go")
 
 	a.recordOperationOutcome(plan, rec, nil)
 	op, _ := a.operations().Get(rec.OperationID)
-	if op.State != evidence.OperationApplied {
-		t.Fatalf("state = %q, want applied and awaiting verification", op.State)
+	if op.State != evidence.OperationSettled {
+		t.Fatalf("state = %q, want settled", op.State)
 	}
 	gaps := a.readinessOperationGaps()
-	if len(gaps) != 1 || gaps[0].OperationID != rec.OperationID || gaps[0].Action != readinessActionContinueVerification {
-		t.Fatalf("delivery gap = %+v, want one continue_verification entry", gaps)
+	if len(gaps) != 0 {
+		t.Fatalf("retired delivery stamp produced operation gaps: %+v", gaps)
 	}
 
 	// A recognized verifier that covers the changed file settles it — by path,
@@ -73,19 +70,14 @@ func TestDeliveryMutationStaysOpenUntilVerified(t *testing.T) {
 	}
 }
 
-func TestDeliveryGapReportNamesTheOperationAndAction(t *testing.T) {
+func TestRetiredDeliveryStampProducesNoGapReport(t *testing.T) {
 	a, _ := newEvidenceAgent(t, evidenceWriter{}, true)
-	a.turn.constraints.PolicyFloor = taskcontract.PolicyFloorDelivery
 	plan, rec := mutationPlanAndReceipt("internal/auth/login.go")
 	a.recordOperationOutcome(plan, rec, nil)
 
-	// Slash-canonical display keeps the report (and this test) identical on
-	// every OS, like every other host message that names a path.
 	report := describeReadinessGaps(a.readinessOperationGaps())
-	for _, want := range []string{rec.OperationID, "internal/auth/login.go", readinessActionContinueVerification} {
-		if !strings.Contains(report, want) {
-			t.Fatalf("report %q missing %q", report, want)
-		}
+	if report != "" {
+		t.Fatalf("retired delivery stamp produced gap report %q for %s", report, rec.OperationID)
 	}
 }
 

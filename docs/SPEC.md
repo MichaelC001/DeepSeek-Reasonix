@@ -558,7 +558,7 @@ func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Dec
   Goal has no default model-round, cross-Run turn, wall-clock, or numeric
   no-progress boundary. Goal-scoped novelty accepts new read/search results and state changes
   but rejects exact tool/argument/result repeats. All classes use the same Goal
-  FSM, host receipts, Delivery readiness, and bounded evaluator; there is no second research
+  FSM, host receipts, readiness evaluation, and bounded evaluator; there is no second research
   protocol or writable sidecar runtime. Legacy `.reasonix/autoresearch/...`
   archives remain read-only and explicit old paths recover as ordinary Goals.
   Outside goal mode, ordinary prompts never change collaboration mode; the user

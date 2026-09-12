@@ -27,7 +27,8 @@ reasonix acp --model deepseek-pro
 ```
 
 客户端未覆盖模型时，`--model` 用于选择启动模型。普通请求一律进入 executor，
-没有自动任务模式；唯一的会话角色是质量底线（standard/delivery），验证义务由宿主根据真实工具动作建立。
+没有自动任务模式或可选质量底线；验证义务由真实工具动作、项目规则、任务风险和用户显式要求共同建立。
+ACP 不再发布 `quality_floor` 选择项；已知旧值仍可提交但只返回退役说明，未知值仍报错。
 
 标准输出专用于 ACP 消息，Reasonix 会把诊断写入标准错误，因此 host 不应合并这两个
 流。尚未配置 provider 时先运行 `reasonix setup`；initialize 响应也会声明一个启动

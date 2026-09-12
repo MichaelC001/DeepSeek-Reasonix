@@ -6,7 +6,6 @@ import (
 	"reasonix/internal/event"
 	"reasonix/internal/evidence"
 	"reasonix/internal/provider"
-	"reasonix/internal/taskcontract"
 	"reasonix/internal/tool"
 )
 
@@ -39,13 +38,6 @@ func (a *Agent) recordToolReceipts(plan *toolCallPlan, result string, execution 
 	}
 	call := plan.call
 	args := json.RawMessage(call.Arguments)
-	// The session floor in force at write time is a fact of the write: it
-	// rides the receipt so the per-turn contract replay re-derives the same
-	// floor obligations even after the floor changes.
-	floorStamp := a.turn.constraints.PolicyFloor.String()
-	if floorStamp == taskcontract.PolicyFloorNone.String() {
-		floorStamp = ""
-	}
 	// Every receipt carries the operation it belongs to, so a later citation
 	// resolves an ID the host issued instead of a command string the model
 	// retyped, and a repeated failure is attributable to one intended change.
@@ -54,10 +46,8 @@ func (a *Agent) recordToolReceipts(plan *toolCallPlan, result string, execution 
 	case call.Name == "complete_step":
 		rec := evidence.ReceiptFromToolCall(call.Name, args, err == nil, plan.readOnly)
 		a.stampReceiptDeliveryScope(&rec)
-		rec.PolicyFloor = floorStamp
 		rec.OperationID = operationID
 		rec = a.task.ledger.Record(rec)
-		a.commitToolReceipt(rec)
 		if err == nil {
 			a.advanceCanonicalTodo(rec.Step)
 		}
@@ -70,11 +60,9 @@ func (a *Agent) recordToolReceipts(plan *toolCallPlan, result string, execution 
 		rec.ToolCallID = call.ID
 		rec.Mutation = plan.effects.ContentMutation
 		a.stampReceiptDeliveryScope(&rec)
-		rec.PolicyFloor = floorStamp
 		decorateExecutionReceipt(&rec, result, execution)
 		rec.OperationID = operationID
 		rec = a.task.ledger.Record(rec)
-		a.commitToolReceipt(rec)
 		a.recordOperationOutcome(plan, rec, err)
 		return rec
 	default:
@@ -82,17 +70,12 @@ func (a *Agent) recordToolReceipts(plan *toolCallPlan, result string, execution 
 		rec.ToolCallID = call.ID
 		rec.Mutation = plan.effects.ContentMutation
 		a.stampReceiptDeliveryScope(&rec)
-		rec.PolicyFloor = floorStamp
 		decorateExecutionReceipt(&rec, result, execution)
 		rec.OperationID = operationID
 		rec = a.task.ledger.Record(rec)
-		a.commitToolReceipt(rec)
 		a.recordOperationOutcome(plan, rec, err)
 		if err == nil && call.Name == "todo_write" {
 			a.setTodoState(rec.Todos)
-			if len(rec.Todos) > 0 {
-				a.turn.deliveryCriteriaEstablished = true
-			}
 			a.emitTodoResultPreview(call, result)
 		}
 		return rec

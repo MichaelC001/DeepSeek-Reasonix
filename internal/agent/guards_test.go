@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"reasonix/internal/event"
+	"reasonix/internal/evidence"
 	"reasonix/internal/provider"
 	"reasonix/internal/tool"
 	_ "reasonix/internal/tool/builtin"
@@ -566,6 +567,7 @@ func TestExecuteBatchFeedsReceiptsToCompleteStep(t *testing.T) {
 	reg.Add(completeStep)
 	a := New(nil, reg, NewSession(""), Options{}, event.Discard)
 
+	a.SeedTodoState([]evidence.TodoItem{{Content: "Run checks", Status: "pending"}})
 	batch := a.executeBatch(context.Background(), &a.turn, []provider.ToolCall{
 		{Name: "bash", Arguments: `{"command":"go test ./internal/..."}`},
 		{Name: "complete_step", Arguments: `{
@@ -579,7 +581,7 @@ func TestExecuteBatchFeedsReceiptsToCompleteStep(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("got %d results, want 2", len(results))
 	}
-	if !strings.Contains(results[1], "host-verified 1") {
+	if !strings.Contains(results[1], evidence.ModelCompletionDeclarationPrefix) {
 		t.Fatalf("complete_step did not see bash receipt: %q", results[1])
 	}
 }

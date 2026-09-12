@@ -21,6 +21,10 @@ try {
   await page.goto(url + "/?mock=bench&bench=1&app-lifecycle-probe=1");
   await page.locator("textarea.composer__input:not([aria-hidden=true])").waitFor();
   await page.locator('.project-tree__topic-main:has-text("bench:small-6t")').click();
+  // The benchmark fixture hydrates this session asynchronously. Wait for the
+  // authoritative session snapshot before mutating dock state, otherwise the
+  // late hydrate can replace the empty-state picker while Playwright clicks it.
+  await page.waitForFunction(() => document.querySelector('.transcript')?.textContent?.includes('ASYNC LAYOUT EXPANSION COMPLETE'));
   const tabs = page.locator('.workbench-dock__tabs [role="tab"]');
   const overview = page.getByRole("tab", { name: "Overview", exact: true });
   await overview.waitFor();

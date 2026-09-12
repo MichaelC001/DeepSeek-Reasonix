@@ -187,9 +187,9 @@ func claimViolations(summary evidence.ChildEvidenceSummary, claims WritePathSet)
 // Ordinary reads and greps are excluded on purpose — they are not claims a
 // parent has to adjudicate, and every rendered line costs parent context.
 func formatHostReceipts(summary evidence.ChildEvidenceSummary, claims WritePathSet) string {
-	changed := summary.MutationPaths()
+	changed := receiptDisplayPaths(summary.MutationPaths())
 	commands := hostReceiptCommands(summary)
-	violations := claimViolations(summary, claims)
+	violations := receiptDisplayPaths(claimViolations(summary, claims))
 	if len(changed) == 0 && len(commands) == 0 {
 		return ""
 	}
@@ -208,6 +208,14 @@ func formatHostReceipts(summary evidence.ChildEvidenceSummary, claims WritePathS
 		b.WriteString(joinBoundedReceipts(violations))
 	}
 	return b.String()
+}
+
+func receiptDisplayPaths(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, value := range paths {
+		out[i] = strings.ReplaceAll(value, `\`, "/")
+	}
+	return out
 }
 
 // hostReceiptCommands keeps only shell receipts carrying an outcome worth

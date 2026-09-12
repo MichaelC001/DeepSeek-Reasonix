@@ -20,8 +20,9 @@ and arguments — not from the provider's per-round call ID, so the same edit
 resubmitted under a new ID is recognizably the same operation. States are
 `prepared`, `applied`, `verification_pending`, `settled`, `failed`, `unknown`
 and `needs_user`; `settled` and `needs_user` are terminal and never transition
-twice. Ordinary work settles on the real tool result. Only a delivery floor
-holds a change open until a verification covering its paths passes.
+twice. Work settles on the real tool result. Verification results and missing
+checks remain recorded independently for Plan, Goal, project rules, risk, and
+explicit user requirements.
 
 The same operation failing the same way twice is a loop, not a
 self-correction: the host stops offering automatic recovery, moves it to
@@ -106,13 +107,12 @@ the operation is reported to the user with its next action
 (`continue_verification`, or `resolve_with_user` for a paused one) instead of
 being sent back to the model.
 
-Outside a delivery floor `complete_step` is a note: evidence is optional, and
-anything the host cannot confirm is reported alongside the sign-off rather than
-rejected. Argument shape is still validated. A successful command the host does
-not recognize as a standard verifier is reported as unclassified in both modes —
-projects verify through Makefiles, wrappers and private scripts — while the
-delivery gate independently still requires a recognized verification before
-changed work can finalize.
+`complete_step` records a plan step. Evidence is optional unless the current
+Plan, Goal, project rule, risk classification, or explicit user requirement
+requires it; anything the host cannot confirm is reported alongside the sign-off.
+Argument shape is still validated. A successful command the host does not
+recognize as a standard verifier is reported as unclassified because projects
+also verify through Makefiles, wrappers, and private scripts.
 
 | Data | New reader of old data | Previous reader of new data |
 | --- | --- | --- |

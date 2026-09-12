@@ -2265,7 +2265,7 @@ func TestParseRuntimeProfile(t *testing.T) {
 	for input, want := range map[string]string{
 		"": "standard", "balanced": "standard", "standard": "standard", "full": "standard",
 		"economy": "standard", "light": "standard", "lite": "standard", "eco": "standard",
-		"delivery": "delivery", "deliver": "delivery", "quality": "delivery",
+		"delivery": "standard", "deliver": "standard", "quality": "standard",
 	} {
 		got, err := parseRuntimeProfile(input)
 		if err != nil || got != want {

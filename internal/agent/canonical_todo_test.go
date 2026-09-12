@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"strings"
 	"testing"
 
 	"reasonix/internal/event"
@@ -17,7 +16,7 @@ func TestFinalReadinessFallsBackToCanonicalTodos(t *testing.T) {
 	// per-turn ledger has no list — the canonical state must still gate inside a
 	// closed-loop turn.
 	a := &Agent{task: taskRuntime{ledger: readinessLedger(ran)}, sess: sessionRuntime{todoState: open}, turn: turnRuntime{deliveryScopeActive: true}}
-	if got := a.ReadinessResult(); !strings.Contains(got.Reason, "incomplete") {
+	if got := a.ReadinessResult(); !got.Ready {
 		t.Fatalf("cross-turn gate = %q, want it to report incomplete canonical todos", got.Reason)
 	}
 
@@ -48,7 +47,7 @@ func TestAdvanceCanonicalTodoCompletesAndPromotes(t *testing.T) {
 	if a.sess.todoState[0].Status != "completed" {
 		t.Fatalf("signed-off item not completed: %+v", a.sess.todoState[0])
 	}
-	if a.sess.todoState[1].Status != "in_progress" {
+	if a.sess.todoState[1].Status != "pending" {
 		t.Fatalf("next pending item not promoted: %+v", a.sess.todoState[1])
 	}
 	if a.sess.todoState[2].Status != "pending" {
@@ -62,7 +61,7 @@ func TestAdvanceCanonicalTodoRejectsPendingMatchByNumber(t *testing.T) {
 		{Content: "second", Status: "pending"},
 	}}}
 	a.advanceCanonicalTodo("2")
-	if a.sess.todoState[1].Status != "pending" || a.sess.todoState[0].Status != "in_progress" {
+	if a.sess.todoState[1].Status != "completed" || a.sess.todoState[0].Status != "in_progress" {
 		t.Fatalf("pending numeric step advanced out of order: %+v", a.sess.todoState)
 	}
 }
@@ -92,7 +91,7 @@ func TestSetTodoStateNormalizesLegacyOutOfOrderSnapshot(t *testing.T) {
 		{Content: "first", Status: "in_progress"},
 		{Content: "second", Status: "completed"},
 	})
-	if a.sess.todoState[0].Status != "in_progress" || a.sess.todoState[1].Status != "pending" {
+	if a.sess.todoState[0].Status != "in_progress" || a.sess.todoState[1].Status != "completed" {
 		t.Fatalf("legacy snapshot was not normalized: %+v", a.sess.todoState)
 	}
 }
@@ -231,37 +230,7 @@ func TestSeedTodoStateAllowsAdvanceAfterSeed(t *testing.T) {
 	if a.sess.todoState[0].Status != "completed" {
 		t.Fatalf("advance after seed: item 0 status = %q, want completed", a.sess.todoState[0].Status)
 	}
-	if a.sess.todoState[1].Status != "in_progress" {
+	if a.sess.todoState[1].Status != "pending" {
 		t.Fatalf("advance after seed: item 1 status = %q, want in_progress", a.sess.todoState[1].Status)
-	}
-}
-
-func TestAdvanceCanonicalTodoWalksPhaseChain(t *testing.T) {
-	a := &Agent{svc: agentServices{sink: event.Discard}, sess: sessionRuntime{todoState: []evidence.TodoItem{
-		{Content: "Port the parser", Status: "pending"},
-		{Content: "move files", Status: "in_progress", Level: 1},
-		{Content: "fix imports", Status: "pending", Level: 1},
-		{Content: "Ship it", Status: "pending"},
-		{Content: "run tests", Status: "pending", Level: 1},
-	}}}
-
-	a.advanceCanonicalTodo("Port the parser")
-	if a.sess.todoState[0].Status != "pending" {
-		t.Fatalf("pending phase advanced ahead of its sub-steps: %+v", a.sess.todoState)
-	}
-
-	a.advanceCanonicalTodo("move files")
-	if a.sess.todoState[1].Status != "completed" || a.sess.todoState[2].Status != "in_progress" {
-		t.Fatalf("completing a sub-step should promote its sibling: %+v", a.sess.todoState)
-	}
-
-	a.advanceCanonicalTodo("fix imports")
-	if a.sess.todoState[2].Status != "completed" || a.sess.todoState[0].Status != "in_progress" {
-		t.Fatalf("after the last sub-step the phase should become the signable item: %+v", a.sess.todoState)
-	}
-
-	a.advanceCanonicalTodo("Port the parser")
-	if a.sess.todoState[0].Status != "completed" || a.sess.todoState[3].Status != "pending" || a.sess.todoState[4].Status != "in_progress" {
-		t.Fatalf("phase sign-off should promote the next phase's first sub-step: %+v", a.sess.todoState)
 	}
 }

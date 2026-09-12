@@ -24,8 +24,8 @@ func TestContextualBuiltinVisibilityFollowsOwningContext(t *testing.T) {
 	if !goal.(tool.ContextualTool).ProviderVisible(tool.WithGoalTurnRecorder(context.Background(), visibilityRecorder{})) {
 		t.Fatal("update_goal hidden during an active Goal turn")
 	}
-	if !step.(tool.ContextualTool).ProviderVisible(context.Background()) {
-		t.Fatal("complete_step hidden outside Plan mode")
+	if step.(tool.ContextualTool).ProviderVisible(context.Background()) {
+		t.Fatal("retired complete_step visible")
 	}
 	if step.(tool.ContextualTool).ProviderVisible(planmode.WithActive(context.Background(), true)) {
 		t.Fatal("complete_step visible during Plan mode")

@@ -387,9 +387,8 @@ func setupQuietProfile(ctx context.Context, modelName string, maxStepsOverride i
 	return boot.Build(ctx, cliProfileBuildOptions(modelName, maxStepsOverride, requireKey, sink, overrides))
 }
 
-// parseRuntimeProfile validates a role-flag value and maps it onto the
-// session quality floor: light folds to standard silently, delivery sets the
-// delivery floor.
+// parseRuntimeProfile validates a retired role flag. Recognized legacy values
+// all fold to the standard runtime behavior.
 func parseRuntimeProfile(value string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "", "balanced", "standard", boot.TokenModeFull:
@@ -397,9 +396,9 @@ func parseRuntimeProfile(value string) (string, error) {
 	case "economy", "light", "lite", "eco":
 		return "standard", nil
 	case boot.TokenModeDelivery, "deliver", "quality":
-		return "delivery", nil
+		return "standard", nil
 	default:
-		return "", fmt.Errorf("unknown execution setting %q (accepted: standard, delivery; legacy light folds to standard)", value)
+		return "", fmt.Errorf("unknown retired execution setting %q", value)
 	}
 }
 

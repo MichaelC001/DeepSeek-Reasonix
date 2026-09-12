@@ -25,15 +25,8 @@ type turnRuntime struct {
 	trackingTodoProgress bool
 	todoStallRounds      int
 	seenTodoProgress     map[string]struct{}
-	// standardTodoContinuations is the bounded same-Run repair for a Standard
-	// execution turn that wrote an active todo and then tried to stop. The
-	// fingerprint gates the optional second nudge on new host-observed work.
-	standardTodoContinuations int
-	standardTodoProgress      string
-
-	executorHandoff bool
-	input           string
-	workDurationMs  func() int64
+	input                string
+	workDurationMs       func() int64
 
 	// budget is the turn's spend axis: tokens, money, wall clock.
 	budget runBudget
@@ -41,17 +34,12 @@ type turnRuntime struct {
 	// ends with names the axis that actually stopped it.
 	landCause landCause
 
-	// turnInput is this run's task text. The contract is rebuilt from it and
-	// the ledger whenever a live view is needed, so one replay serves both the
-	// per-round observation and the end-of-turn record.
+	// turnInput is the owning task text for explicit constraints and recovery.
 	turnInput string
 	// completion is the report built as the turn ends; the host reads it while
 	// emitting TurnDone, before the next turn resets this state.
-	completion *completion.Report
-	// deliveryCriteriaEstablished may inherit an unfinished canonical task
-	// list on continuation, but the flag itself is recomputed every turn.
-	deliveryCriteriaEstablished bool
-	deliveryScopeActive         bool
+	completion          *completion.Report
+	deliveryScopeActive bool
 	// readinessRecovered marks a run that started with evidence preserved from
 	// (or a pending recovery of) a prior readiness failure, so the final
 	// allowed audit can report Recovered=true.
@@ -125,8 +113,6 @@ type terminalProtocolState struct {
 	// emptyFinalBlocks counts consecutive reasoning-only stops retried for a
 	// visible final answer.
 	emptyFinalBlocks int
-	// handoffNudges counts executor-handoff repairs sent this run.
-	handoffNudges int
 	// contextToolRepairs counts contextual-tool repair rounds; a second
 	// violation after a repair ends the run in a recoverable pause.
 	contextToolRepairs int

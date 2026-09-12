@@ -8,30 +8,6 @@ import (
 	"reasonix/internal/provider"
 )
 
-// persistFinalReadinessRecovery records a provider-excluded, backward-safe
-// checkpoint for plain turns. Goal turns already persist and restore their
-// broader delivery checkpoint and auto-continue under the Goal FSM.
-func (a *Agent) persistFinalReadinessRecovery(missing []string) {
-	if a == nil || a.subagentDepth > 0 || a.turn.deliveryScopeActive || a.task.ledger == nil || a.sess.conversation == nil {
-		return
-	}
-	checkpoint, err := json.Marshal(a.task.ledger.FinalReadinessCheckpoint())
-	if err != nil {
-		return
-	}
-	a.sess.conversation.Add(provider.Message{
-		Role:       provider.RoleTool,
-		ToolCallID: provider.LocalOnlyToolID,
-		Name:       provider.LocalOnlyToolName,
-		LocalOnly:  true,
-		FinalReadinessRecovery: &provider.FinalReadinessRecovery{
-			Pending:    true,
-			Missing:    append([]string(nil), missing...),
-			Checkpoint: checkpoint,
-		},
-	})
-}
-
 // pendingFinalReadinessRecovery returns only the newest unconsumed checkpoint.
 // Any later real user turn makes an old card stale and prevents its evidence
 // from being inherited by an unrelated task.
@@ -40,7 +16,7 @@ func (a *Agent) pendingFinalReadinessRecovery() *provider.FinalReadinessRecovery
 		return nil
 	}
 	for _, message := range slices.Backward(a.sess.conversation.Snapshot()) {
-		if message.LocalOnly && message.FinalReadinessRecovery != nil && message.FinalReadinessRecovery.Pending {
+		if message.LocalOnly && HistoricalChecks(message.FinalReadinessRecovery) != nil {
 			copy := *message.FinalReadinessRecovery
 			copy.Missing = append([]string(nil), copy.Missing...)
 			copy.Checkpoint = append(json.RawMessage(nil), copy.Checkpoint...)

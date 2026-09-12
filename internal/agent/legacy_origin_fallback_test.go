@@ -9,7 +9,7 @@ import (
 func TestLegacyOriginFallbackCoversCurrentHostMessageFamilies(t *testing.T) {
 	for _, content := range []string{
 		CompletionValidationContinuationPrefix + " the last message did not deliver a self-contained final result.",
-		standardTodoContinuationMessage(),
+		StandardTodoContinuationPrefix + " Continue that item now using available tools.",
 		emptyFinalRetryMessage(),
 		executorHandoffRetryMessage(),
 		"This task has reached its token budget. Finalize now.",

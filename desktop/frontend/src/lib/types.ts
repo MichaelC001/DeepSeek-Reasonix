@@ -583,9 +583,9 @@ export interface TabMeta extends RemoteTabMetaFields {
   collaborationMode?: CollaborationMode;
   toolApprovalMode?: ToolApprovalMode;
   tokenMode?: TokenMode;
-  agentPreset?: AgentPreset; // canonical role; prefer qualityFloor
-  qualityFloor?: QualityFloor; // absent means standard
-  floorInferred?: boolean; // facts, not user choice, put the session at delivery
+  agentPreset?: AgentPreset; // retired compatibility field; current hosts emit standard
+  qualityFloor?: QualityFloor; // retired compatibility field; current hosts emit standard
+  floorInferred?: boolean; // retired compatibility field; current hosts emit false
   goal?: string;
   goalStatus?: GoalStatus;
   recovered?: boolean;
@@ -1034,9 +1034,9 @@ export interface Meta extends RemoteSessionMetaFields {
   collaborationMode?: CollaborationMode;
   toolApprovalMode?: ToolApprovalMode;
   tokenMode?: TokenMode;
-  agentPreset?: AgentPreset; // canonical role; prefer qualityFloor
-  qualityFloor?: QualityFloor; // absent means standard
-  floorInferred?: boolean; // facts, not user choice, put the session at delivery
+  agentPreset?: AgentPreset; // retired compatibility field; current hosts emit standard
+  qualityFloor?: QualityFloor; // retired compatibility field; current hosts emit standard
+  floorInferred?: boolean; // retired compatibility field; current hosts emit false
   goal?: string;
   goalStatus?: GoalStatus;
   goalRuntime?: GoalRuntime;
@@ -1044,11 +1044,10 @@ export interface Meta extends RemoteSessionMetaFields {
 }
 export type CollaborationMode = "normal" | "plan" | "goal";
 export type ToolApprovalMode = "ask" | "auto" | "yolo";
-// TokenMode is the dual-write wire value for the session quality floor.
-// The floor itself is standard|delivery; light and its aliases fold to
-// standard, and full/economy remain one compatibility version of old values.
+// Retired wire vocabularies remain accepted so old sessions and remote hosts
+// can be decoded. Current local hosts emit full/balanced/standard.
 export type TokenMode = "full" | "economy" | "delivery" | "light" | "balanced";
-export type AgentPreset = "light" | "balanced" | "delivery";
+export type AgentPreset = "standard" | "light" | "balanced" | "delivery";
 export type QualityFloor = "standard" | "delivery";
 export type GoalStatus = "running" | "complete" | "blocked" | "stopped";
 // Optional Goal runtime summary; absent for old hosts or when no goal is active.
@@ -1088,30 +1087,19 @@ export function normalizeToolApprovalMode(
 }
 
 export function normalizeTokenMode(mode?: string): TokenMode {
-  const m = (mode ?? "").trim().toLowerCase();
-  if (m === "economy" || m === "light" || m === "lite" || m === "eco") return "economy";
-  if (m === "delivery" || m === "deliver" || m === "quality") return "delivery";
-  // balanced | full | empty | unknown → balanced wire value "full"
+  void mode;
   return "full";
 }
 
-/** Canonical product id for the three Agent role settings. */
+/** Normalize the retired role vocabulary to the fixed compatibility value. */
 export function normalizeAgentPreset(mode?: string): AgentPreset {
-  const wire = normalizeTokenMode(mode);
-  if (wire === "economy" || wire === "light") return "light";
-  if (wire === "delivery") return "delivery";
-  return "balanced";
+  void mode;
+  return "standard";
 }
 
 export function tokenModeFromAgentPreset(preset: AgentPreset): TokenMode {
-  switch (preset) {
-    case "light":
-      return "economy";
-    case "delivery":
-      return "delivery";
-    default:
-      return "full";
-  }
+  void preset;
+  return "full";
 }
 
 // Mode is the compatibility string for two independent composer axes:

@@ -45,7 +45,6 @@ import (
 	"reasonix/internal/hook"
 	"reasonix/internal/imageinput"
 	"reasonix/internal/installsource"
-	"reasonix/internal/instruction"
 	"reasonix/internal/jobs"
 	"reasonix/internal/lsp"
 	"reasonix/internal/mcplaunch"
@@ -143,9 +142,8 @@ type Options struct {
 	// (for example ACP session/new). They are connected eagerly for this
 	// controller but are not persisted to reasonix.toml.
 	ExtraPlugins []plugin.Spec
-	// AgentPreset and TokenMode seed the session quality floor. Delivery (or
-	// its aliases) raises it to delivery; light and its aliases fold to
-	// standard; unknown values keep the standard default.
+	// AgentPreset and TokenMode are retired compatibility inputs. Recognized
+	// values use standard execution; unknown values keep the standard default.
 	AgentPreset string
 	TokenMode   string
 	// SessionDir overrides where persisted chat transcripts are written. When
@@ -641,7 +639,6 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 		sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn, Text: "Memory metadata migration did not complete.", Detail: err.Error()})
 	}
 	mem := memory.Load(memory.Options{CWD: root, UserDir: config.MemoryUserDir()})
-	projectChecks := instruction.ExtractHostChecks(mem.Docs)
 	sysPrompt = memory.Compose(sysPrompt, mem)
 
 	implicitSkillInvocation := cfg.ImplicitSkillInvocationEnabled()
@@ -1357,8 +1354,7 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 		// registry stop matching on continue_from (schema-hash check reports
 		// the mismatch).
 		subReg, childWriteRoots := skillSubagentRegistry(sk, reg, childDepth, maxSubagentDepth, capRuntime, writeRootSet)
-		// Delivery risk gates require structured review_report from review
-		// subagents only — never expose it on the parent tool surface.
+		// Voluntary review subagents report their findings in structured form.
 		switch sk.Name {
 		case "review", "security-review", "security_review":
 			agent.AttachReviewReportTool(subReg)
@@ -1692,7 +1688,6 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 		WriteRoots:                   writeRootSet,
 		HomeDir:                      userHomeDir(),
 		StateRoot:                    config.MemoryUserDir(),
-		ProjectChecks:                projectChecks,
 		Ablation:                     opts.Ablation,
 		WorkspaceLease:               workspaceLease,
 		CapabilityLedger:             capLedger,
@@ -1927,11 +1922,8 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 	// reviewer. Controllers that want one inject it explicitly; otherwise Goal
 	// uses the deterministic host policy.
 	ctrl := control.New(ctrlOpts)
-	// The role inputs set the session quality floor: delivery/deliver/quality
-	// raise it, light and its aliases fold to standard, unknown stays default.
-	if p, err := agentpreset.Normalize(firstNonEmpty(opts.AgentPreset, opts.TokenMode)); err == nil && p == agentpreset.Delivery {
-		_ = ctrl.SetQualityFloor(string(p))
-	}
+	// Validate and consume retired role inputs without changing runtime policy.
+	_, _ = agentpreset.Normalize(firstNonEmpty(opts.AgentPreset, opts.TokenMode))
 	// Publish the controller to the extension UI hub's indirection: from here
 	// on, host/ui/* publishes ride ctrl.EmitExtensionEvent and blocking prompts
 	// ride ctrl.Ask, exactly as if the hub had been built after control.New.

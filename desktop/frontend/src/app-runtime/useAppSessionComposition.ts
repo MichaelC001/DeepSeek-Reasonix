@@ -154,7 +154,7 @@ export function useAppSessionComposition(input: AppSessionCompositionInput) {
     sendToTab, runShellForTab, steerForTab, cancel, cancelForTab,
     setControllerModeForTab, setCollaborationMode: setControllerCollaborationMode,
     setCollaborationModeForTab: setControllerCollaborationModeForTab,
-    setToolApprovalModeForTab, setQualityFloor: setControllerQualityFloor,
+    setToolApprovalModeForTab,
     setComposerProfileForTab: setControllerComposerProfileForTab, setGoalForTab: setControllerGoalForTab,
     resumeGoalForTab: resumeControllerGoalForTab, pauseGoalForTab: pauseControllerGoalForTab,
     clearGoalForTab: clearControllerGoalForTab,
@@ -296,8 +296,6 @@ export function useAppSessionComposition(input: AppSessionCompositionInput) {
     remote: remoteSurfaceActive,
     remoteSession,
     planIntentsRef: userPlanModeByTabRef,
-    setControllerQualityFloor,
-    showToast,
   });
   const {
     composerProfile, goal, collaborationMode, toolApprovalMode,

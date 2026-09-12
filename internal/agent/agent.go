@@ -34,7 +34,6 @@ import (
 	"reasonix/internal/sandbox"
 	"reasonix/internal/sessiontemp"
 	"reasonix/internal/shellparse"
-	"reasonix/internal/taskcontract"
 	"reasonix/internal/tool"
 	"reasonix/internal/workspacelease"
 )
@@ -51,7 +50,6 @@ const maxEmptyFinalBlocks = 3
 // initial sampling attempt (Pi-style default: 1 + 3 = 4 attempts total).
 const maxStreamRecoveries = 3
 const maxSamplingAttempts = maxStreamRecoveries + 1
-const maxExecutorHandoffNudges = 1
 
 // defaultReasoningByteLimit caps stored hidden reasoning for one stream.
 // It does not cancel generation; official DeepSeek may emit up to 384K tokens.
@@ -292,11 +290,9 @@ type Agent struct {
 	svc agentServices
 	// sess is the state one conversation owns; SetSession restarts it. See
 	// sessionstate.go.
-	sess sessionRuntime
-	// executorHandoffGuard is enabled by Coordinator only for the executor agent.
-	executorHandoffGuard bool
-	responseLanguage     atomic.Value // string: auto|zh|en
-	reasoningLanguage    atomic.Value // string: auto|zh|en
+	sess              sessionRuntime
+	responseLanguage  atomic.Value // string: auto|zh|en
+	reasoningLanguage atomic.Value // string: auto|zh|en
 
 	requireVisibleFinal bool // internal callers require final Content
 	continuationPolicy  ContinuationPolicy
@@ -361,13 +357,6 @@ type Agent struct {
 	// emitTodoState call increments it so the frontend always sees a fresh
 	// dispatch even when the same panel index is signed off in different turns.
 	hostAdvanceSeq atomic.Int64
-
-	// projectChecks are structured project instructions that complete_step can
-	// verify against same-turn bash receipts after a write-backed completion.
-	projectChecks []instruction.VerifyCheck
-
-	// closedLoop gates come from Goal/Plan scope and strict contract
-	// obligations. Host state only; never enters the provider-cached prefix.
 
 	// inheritedExec is the writer parent's host execution context.
 	inheritedExec *runtimepolicy.InheritedExecutionContext
@@ -969,7 +958,8 @@ type Options struct {
 	// construction; boot always supplies it for writer-capable sessions.
 	WorkspaceLease *workspacelease.Owner
 
-	// ProjectChecks are host-observable structured checks extracted during boot.
+	// ProjectChecks is a retired compatibility option. Project instructions
+	// remain in normal model context and are not compiled into host obligations.
 	ProjectChecks []instruction.VerifyCheck
 
 	// InheritedExecution is the writer parent's host execution context.
@@ -1136,7 +1126,6 @@ func New(prov provider.Provider, tools *tool.Registry, session *Session, opts Op
 		},
 		readOnlyExecution:      opts.ReadOnlyExecution,
 		plannerMCPExecution:    opts.PlannerMCPExecution,
-		projectChecks:          append([]instruction.VerifyCheck(nil), opts.ProjectChecks...),
 		inheritedExec:          opts.InheritedExecution,
 		ablation:               opts.Ablation,
 		capabilityLedger:       opts.CapabilityLedger,
@@ -1176,27 +1165,7 @@ func deprecatedContextRetentionConfigured(opts Options) bool {
 // capability call preference, post-write verification, review, and sign-off.
 // It is authoritative only for host control flow, never for tool schemas.
 func (a *Agent) closedLoopActive() bool {
-	if a == nil {
-		return false
-	}
-	if a.turn.deliveryScopeActive {
-		return true
-	}
-	if a.planContractSnapshot() != nil {
-		return true
-	}
-	if a.turn.constraints.PolicyFloor == taskcontract.PolicyFloorDelivery {
-		return true
-	}
-	if a.turn.engine == nil {
-		return false
-	}
-	for _, o := range a.turn.engine.Snapshot().Obligations {
-		if o.Enforcement == taskcontract.EnforcementStrict {
-			return true
-		}
-	}
-	return false
+	return a != nil && a.turn.deliveryScopeActive
 }
 
 func usageSourceOrDefault(source, fallback string) string {
@@ -1340,23 +1309,9 @@ type ReadinessResult struct {
 
 // ReadinessResult returns the current final-readiness outcome for the host.
 func (a *Agent) ReadinessResult() ReadinessResult {
-	check := a.finalReadinessCheckFor()
-	if check.reason == "" {
-		return ReadinessResult{Ready: true, ProgressKey: check.progressSignature()}
-	}
-	return ReadinessResult{
-		Ready:       false,
-		Missing:     check.missingIDs(),
-		Reason:      check.reason,
-		ProgressKey: check.progressSignature(),
-	}
-}
-
-func boolInt(v bool) int {
-	if v {
-		return 1
-	}
-	return 0
+	// Compatibility query only: quality assessments are no longer execution
+	// conditions. Historical missing checks remain in their original records.
+	return ReadinessResult{Ready: true}
 }
 
 // DeliveryCheckpoint returns the compact Goal-scoped delivery state. It is safe
@@ -1384,50 +1339,20 @@ func (a *Agent) updateDeliveryCheckpoint(runErr error) {
 	if cp.ScopeID != a.task.scopeID {
 		cp = evidence.DeliveryCheckpoint{ScopeID: a.task.scopeID}
 	}
-	cp.CriteriaEstablished = cp.CriteriaEstablished || a.turn.deliveryCriteriaEstablished || a.task.ledger.HasSuccessfulTodoWrite()
 	cp.WorkObserved = cp.WorkObserved || a.task.ledger.HasSuccessfulWorkReceipt()
 	if _, ok := a.task.ledger.LatestSuccessfulMutationIndex(); ok {
 		cp.MutationObserved = true
-		cp.PendingMutation = true
 	}
 	if a.task.ledger.HasSuccessfulToolReceipt("remember") && !a.task.ledger.HasSuccessfulMutationOtherThan("remember") {
 		cp.MutationObserved = true
 	}
-	if runErr == nil && cp.PendingMutation && a.deliveryMutationCheckpointReady() {
-		cp.PendingMutation = false
-	}
 	a.task.checkpoint = cp
-}
-
-func (a *Agent) deliveryMutationCheckpointReady() bool {
-	if a.task.ledger == nil || !a.turn.deliveryCriteriaEstablished {
-		return false
-	}
-	mutation, ok := a.task.ledger.LatestSuccessfulMutationIndex()
-	if !ok {
-		mutation = -1
-	}
-	return a.task.ledger.HasSuccessfulCompleteStepAfter(mutation) &&
-		a.task.ledger.HasSuccessfulDeliverySignoffAfter(mutation) &&
-		a.task.ledger.HasSuccessfulReviewAfter(mutation) &&
-		a.deliveryReviewGateFailure() == ""
 }
 
 func (a *Agent) setTodoState(todos []evidence.TodoItem) {
 	a.sess.todoMu.Lock()
-	a.sess.todoState = evidence.NormalizeSerialTodos(todos)
+	a.sess.todoState = append([]evidence.TodoItem(nil), todos...)
 	a.sess.todoMu.Unlock()
-}
-
-func (a *Agent) hasActiveCanonicalTodo() bool {
-	a.sess.todoMu.Lock()
-	defer a.sess.todoMu.Unlock()
-	for _, todo := range a.sess.todoState {
-		if canonicalTodoStatus(todo.Status) == "in_progress" {
-			return true
-		}
-	}
-	return false
 }
 
 func (a *Agent) canonicalTodoProgress() (int, bool) {
@@ -1473,7 +1398,7 @@ func (a *Agent) advanceCanonicalTodo(step string) {
 		return
 	}
 	m, ok := evidence.MatchStep(step, a.sess.todoState)
-	if !ok || !evidence.AdvanceSerialTodo(a.sess.todoState, m.Index-1) {
+	if !ok || !evidence.CompleteDeclaredTodo(a.sess.todoState, m.Index-1) {
 		a.sess.todoMu.Unlock()
 		return
 	}
@@ -1494,7 +1419,7 @@ func (a *Agent) emitTodoState(todos []evidence.TodoItem, itemIndex int) {
 	id := fmt.Sprintf("host-advance-%d-%d", a.hostAdvanceSeq.Add(1), itemIndex)
 	t := event.Tool{ID: id, Name: "todo_write", Args: string(args), ReadOnly: true}
 	a.svc.sink.Emit(event.Event{Kind: event.ToolDispatch, Tool: t})
-	t.Output = "task list advanced by complete_step"
+	t.Output = "todo updated from model completion declaration"
 	a.svc.sink.Emit(event.Event{Kind: event.ToolResult, Tool: t})
 }
 
@@ -1512,6 +1437,12 @@ func (a *Agent) RebuildTodoState() {
 // Empty after compaction drops the todo_write — no worse than no canonical list.
 func (a *Agent) rebuildTodoState(msgs []provider.Message) {
 	successful := successfulToolCallIDs(msgs)
+	outputs := make(map[string]string)
+	for _, msg := range msgs {
+		if msg.Role == provider.RoleTool {
+			outputs[msg.ToolCallID] = msg.Content
+		}
+	}
 	var todos []evidence.TodoItem
 	baseIdx := -1
 	for i, msg := range msgs {
@@ -1522,7 +1453,7 @@ func (a *Agent) rebuildTodoState(msgs []provider.Message) {
 			rec := evidence.ReceiptFromToolCall(tc.Name, json.RawMessage(tc.Arguments), true, true)
 			// A successful empty todo_write is an explicit clear. Preserve it as the
 			// latest base so history reloads do not resurrect an older non-empty list.
-			todos = evidence.NormalizeSerialTodos(rec.Todos)
+			todos = evidence.ReplayTodoList(rec.Todos, outputs[tc.ID])
 			baseIdx = i
 		}
 	}
@@ -1537,12 +1468,11 @@ func (a *Agent) rebuildTodoState(msgs []provider.Message) {
 			}
 			rec := evidence.ReceiptFromToolCall(tc.Name, json.RawMessage(tc.Arguments), true, true)
 			if m, ok := evidence.MatchStep(rec.Step, todos); ok {
-				evidence.AdvanceSerialTodo(todos, m.Index-1)
+				evidence.ReplayTodoCompletion(todos, m.Index-1, outputs[tc.ID])
 			}
 		}
 	}
 	a.setTodoState(todos)
-	a.consumeTodoOnlyReadinessMarkerIfResolved()
 }
 
 func successfulToolCallIDs(msgs []provider.Message) map[string]bool {
@@ -1564,138 +1494,6 @@ func toolResultFailed(content string) bool {
 		strings.HasPrefix(content, "blocked:") ||
 		strings.HasPrefix(content, "Error:") ||
 		strings.HasPrefix(content, "[error")
-}
-
-func shouldNudgeExecutorHandoff(input, answer string) bool {
-	return !executorHandoffAllowsTextOnly(input, answer)
-}
-
-func executorHandoffAllowsTextOnly(input, answer string) bool {
-	if looksLikeExecutorHandoffDeferral(answer) {
-		return false
-	}
-	task, plan, ok := parseExecutorHandoff(input)
-	if !ok {
-		return false
-	}
-	if handoffTaskLooksTextOnly(task) {
-		return true
-	}
-	return handoffPlanLooksTextOnly(plan)
-}
-
-func parseExecutorHandoff(input string) (task, plan string, ok bool) {
-	input = StripTransientUserBlocks(input)
-	marker := "# " + executorHandoffMarker
-	i := strings.Index(input, marker)
-	if i < 0 {
-		return "", "", false
-	}
-	input = input[i+len(marker):]
-	_, input, ok = strings.Cut(input, "\n\nOriginal task:\n")
-	if !ok {
-		return "", "", false
-	}
-	task, input, ok = strings.Cut(input, "\n\nPlanner output:\n")
-	if !ok {
-		return "", "", false
-	}
-	plan, _, ok = strings.Cut(input, "\n\nExecutor instructions:")
-	if !ok {
-		return "", "", false
-	}
-	if beforeToolContext, _, found := strings.Cut(plan, "\n\nExecutor tool context:"); found {
-		plan = beforeToolContext
-	}
-	return strings.TrimSpace(task), strings.TrimSpace(plan), true
-}
-
-func looksLikeExecutorHandoffDeferral(answer string) bool {
-	lower := strings.ToLower(strings.TrimSpace(answer))
-	if lower == "" {
-		return true
-	}
-	if containsAnySubstring(lower, executorHandoffDeferralPhrases) {
-		return true
-	}
-	switch strings.Trim(lower, " \t\r\n.!?。！？") {
-	case "ok", "okay", "sounds good", "done", "好的", "可以", "没问题", "收到":
-		return true
-	default:
-		return false
-	}
-}
-
-func handoffTaskLooksTextOnly(task string) bool {
-	lower := strings.ToLower(strings.TrimSpace(task))
-	if lower == "" {
-		return false
-	}
-	if containsAnySubstring(lower, executorHandoffWorkRequestTerms) {
-		return false
-	}
-	return containsAnySubstring(lower, executorHandoffTextOnlyTaskTerms)
-}
-
-func handoffPlanLooksTextOnly(plan string) bool {
-	lower := strings.ToLower(strings.TrimSpace(plan))
-	if lower == "" {
-		return false
-	}
-	if containsAnySubstring(lower, executorHandoffLocalActionTerms) {
-		return false
-	}
-	if containsAnySubstring(lower, executorHandoffTextOnlyPlanTerms) {
-		return true
-	}
-	return strings.Contains(lower, "?")
-}
-
-func containsAnySubstring(s string, terms []string) bool {
-	for _, term := range terms {
-		if strings.Contains(s, term) {
-			return true
-		}
-	}
-	return false
-}
-
-var executorHandoffDeferralPhrases = []string{
-	"plan looks", "looks good", "should be easy", "should be straightforward",
-	"i can implement", "i'll implement", "i will implement", "i'll get started",
-	"let me ", "i will now", "i'll now", "i can do that",
-	"计划看起来", "可以实现", "我会", "我将", "接下来我", "马上开始",
-}
-
-var executorHandoffWorkRequestTerms = []string{
-	"implement", "fix", "refactor", "migrate", "edit", "write", "create", "delete",
-	"update", "remove", "add ", "test", "build", "repair", "patch",
-	"修改", "修复", "实现", "新增", "重构", "迁移", "补齐", "更新", "删除", "移除",
-}
-
-var executorHandoffTextOnlyTaskTerms = []string{
-	"now what", "what next", "tl;dr", "tldr", "summarize", "summary", "explain",
-	"i installed", "i just installed", "i turned on", "i enabled", "it's on", "it is on",
-	"怎么办", "下一步", "然后呢", "总结", "解释", "说明", "装了", "装好了", "安装了", "开了", "开启了", "打开了",
-}
-
-var executorHandoffLocalActionTerms = []string{
-	"write_file", "read_file", "apply_patch", "bash",
-	"workspace", "repo", "repository", "codebase", "file", "path",
-	"write ", "edit ", "modify ", "create ", "delete ", "remove ", "update ", "add ", "patch ", "refactor ", "implement ",
-	"run ", "command", "test", "build",
-	"文件", "路径", "仓库", "代码", "写入", "编辑", "修改", "创建", "删除", "移除", "更新", "新增", "运行", "命令", "测试", "构建",
-}
-
-var executorHandoffTextOnlyPlanTerms = []string{
-	"tell the user", "ask the user", "guide the user", "explain to the user",
-	"summarize", "summary", "tl;dr", "tldr", "answer the user", "respond to the user",
-	"provide guidance", "walk the user", "instruct the user", "have the user",
-	"user should", "the user should", "user can", "the user can", "manual", "manually",
-	"no tools needed", "no tool calls needed", "does not need tools", "needs no tools",
-	"listen", "play a song", "compare the difference", "checkbox",
-	"告诉用户", "询问用户", "问用户", "让用户", "请用户", "指导用户", "解释", "总结", "回答",
-	"手动", "无需工具", "不需要工具", "试听", "听歌", "对比", "勾选",
 }
 
 func executorHandoffRetryMessage() string {
@@ -1725,10 +1523,6 @@ func emptyFinalNoticeDetail(prov string, u *provider.Usage, reasoningLen int) st
 		finish = u.FinishReason
 	}
 	return fmt.Sprintf("empty final answer blocked: %s returned no visible answer text (finish=%s, reasoning=%d chars); retrying", prov, finish, reasoningLen)
-}
-
-func executorHandoffNoticeText() string {
-	return i18n.M.ExecutorHandoff
 }
 
 func toolBudgetNoticeText() string {

@@ -152,7 +152,6 @@ export function WorkspacePanel({
   creationMode = false,
   completionSummary,
   turnStartAt = 0,
-  qualityFloor,
 }: {
   open: boolean;
   tabId?: string;
@@ -186,7 +185,6 @@ export function WorkspacePanel({
   creationMode?: boolean;
   completionSummary?: WireCompletionSummary;
   turnStartAt?: number;
-  qualityFloor?: "standard" | "delivery";
 }) {
   const t = useT();
   const workspaceTabId = tabId ?? "";
@@ -1635,7 +1633,7 @@ export function WorkspacePanel({
           onMouseUp={showSelectionToolbar}
         >
           {viewMode === "changed" && activeVerificationRevealRequest && visibleCompletionSummary ? (
-            <WorkspaceTurnResult key={activeVerificationRevealRequest.id} ref={verificationSummaryRef} summary={visibleCompletionSummary} qualityFloor={qualityFloor} tabId={workspaceTabId} sessionPath={sessionPath ?? ""} initialView={activeVerificationRevealRequest.view} onAllChanges={() => { onDismissTurnResult?.(); }} />
+            <WorkspaceTurnResult key={activeVerificationRevealRequest.id} ref={verificationSummaryRef} summary={visibleCompletionSummary} tabId={workspaceTabId} sessionPath={sessionPath ?? ""} initialView={activeVerificationRevealRequest.view} onAllChanges={() => { onDismissTurnResult?.(); }} />
           ) : viewMode === "changed" && scopedChangeRows ? (
             <div className="workspace-change-scope">
               <div className="workspace-change-scope__head">

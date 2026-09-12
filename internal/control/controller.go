@@ -41,7 +41,6 @@ import (
 	"reasonix/internal/extension"
 	"reasonix/internal/extension/dispatch"
 	"reasonix/internal/extension/uihub"
-	"reasonix/internal/goaleval"
 	"reasonix/internal/guardian"
 	"reasonix/internal/hook"
 	"reasonix/internal/i18n"
@@ -113,10 +112,7 @@ type Controller struct {
 	taskBudget agent.TaskBudget
 	// goalTokenBudget bounds an unattended Goal loop; 0 leaves it unbounded.
 	goalTokenBudget int
-	// evaluator is the bounded Goal completion evaluator consulted when the
-	// working model submits no update_goal report. nil fails closed: the goal
-	// pauses instead of defaulting to continue.
-	evaluator goaleval.Evaluator
+
 	// goalUsageTee accounts billable usage events into the active goal turn's
 	// observational token total. It wraps the public sink when the caller didn't provide one.
 	goalUsageTee *goalUsageTee
@@ -485,10 +481,10 @@ type Options struct {
 	TaskBudget agent.TaskBudget
 	// GoalTokenBudget bounds an unattended Goal loop by cumulative tokens.
 	GoalTokenBudget int
-	// GoalEvaluator is the optional bounded Goal completion evaluator consulted
+	// GoalEvaluator is accepted only for source compatibility.
 	// when the working model submits no update_goal report. nil fails closed:
 	// the goal pauses instead of defaulting to continue.
-	GoalEvaluator goaleval.Evaluator
+	GoalEvaluator any // deprecated: accepted but never invoked
 	Sink          event.Sink
 	Policy        permission.Policy
 	// SubagentGate is the shared, mutable gate every headless-only sub-agent
@@ -698,7 +694,6 @@ func New(opts Options) *Controller {
 		executor:                          opts.Executor,
 		guardianSess:                      opts.Guardian,
 		guardianPath:                      guardian.PathFor(opts.SessionPath),
-		evaluator:                         opts.GoalEvaluator,
 		goalUsageTee:                      usageTee,
 		sink:                              sink,
 		policy:                            opts.Policy,
@@ -1140,7 +1135,7 @@ func (c *Controller) finishGuardedTurn(err error, completion *guardedTurnComplet
 	if done.CheckpointTurn != nil {
 		changes := completion.checkpoint.store.FreezeTurnChanges(*done.CheckpointTurn)
 		if done.Receipt == nil && (len(changes.Files) > 0 || len(changes.Reasons) > 0) {
-			done.Receipt = &event.CompletionReceipt{Verdict: "unknown"}
+			done.Receipt = &event.CompletionReceipt{AssessmentKind: "facts", Verdict: "unknown"}
 		}
 		if done.Receipt != nil {
 			// Detach the executor's receipt before adding host-owned file facts.
@@ -1213,7 +1208,7 @@ const ManagedConfigWriteApprovalTool = "config_write"
 
 // planApprovedMessage is the follow-up turn sent once the user approves a plan —
 // the in-context nudge to execute and keep the (already-seeded) task list honest.
-const planApprovedMessage = "Plan approved — plan mode is off. Implement the plan now. The ordinary writer fallback is approved for this execution turn; explicit ask/deny rules and forced fresh reviews still apply. Use this workflow: 1) mark the first sub-step in_progress with todo_write (this establishes the task list); 2) execute the sub-step; 3) call complete_step with evidence — the host then marks that sub-step completed and moves the next one to in_progress for you. You may call complete_step for multiple sub-steps in one tool-call round when their work and evidence already exist, but keep calls in Todo order; the host processes them sequentially and rejects skipped or out-of-order sign-offs. You don’t need another todo_write to mark steps completed; each complete_step advances the list."
+const planApprovedMessage = "Plan approved — plan mode is off. Implement the approved plan and user feedback. Explicit scope, permission and sandbox restrictions still apply. Update todos to reflect actual progress. Use the plan’s checks and acceptance notes as task instructions, and report what you changed and verified."
 
 // runTurn runs one model turn, then applies the plan-approval gate. This is the
 // single, frontend-agnostic plan flow: in Plan the model is instructed to
@@ -2346,15 +2341,11 @@ func (p plannerPlanApprover) RunWithPlannerApproval(ctx context.Context, plan st
 	if !allow {
 		return nil
 	}
-	todoArgs := c.seedPlanTodos(plan)
-	execStart := c.sessionMessageCount()
+	c.seedPlanTodos(plan)
 	c.approval.setPlanAutoApprove(true)
 	defer c.approval.setPlanAutoApprove(false)
 	if err := run(ctx); err != nil {
 		return err
-	}
-	if todoArgs != "" && !c.hasTodoUpdateSince(execStart) {
-		c.completePlanTodos(todoArgs)
 	}
 	return nil
 }
@@ -2773,10 +2764,8 @@ func (c *Controller) SetPlanMode(v bool) {
 	c.applyPlanMode(v)
 }
 
-// SetAgentPreset writes the role through to the session quality floor:
-// delivery/deliver/quality set the delivery floor, everything valid folds to
-// standard, unknown values are ignored for compat. It never rebuilds the
-// agent and never changes tool schemas.
+// SetAgentPreset accepts retired role inputs for compatibility. Recognized
+// values no longer change runtime behavior.
 func (c *Controller) SetAgentPreset(preset string) {
 	if c == nil {
 		return
@@ -2786,11 +2775,8 @@ func (c *Controller) SetAgentPreset(preset string) {
 	}
 }
 
-// AgentPreset returns the session role label derived from the quality floor.
+// AgentPreset returns the fixed compatibility label.
 func (c *Controller) AgentPreset() string {
-	if c.QualityFloor() == QualityFloorDelivery {
-		return string(agentpreset.Delivery)
-	}
 	return string(agentpreset.Standard)
 }
 
@@ -2857,6 +2843,15 @@ func (c *Controller) GoalStrict(strict bool) {
 // cache-stable prefix.
 func (c *Controller) SetGoal(goal string) {
 	c.SetGoalWithResearchMode(goal, GoalResearchAuto)
+}
+
+// LoadInactiveGoal restores a legacy metadata-only objective without starting
+// execution or writing a sidecar during read-only history access.
+func (c *Controller) LoadInactiveGoal(goal string) {
+	c.goals.mu.Lock()
+	defer c.goals.mu.Unlock()
+	c.goals.installGoalLocked(strings.TrimSpace(goal), ClassifyGoalBudget(goal))
+	c.goals.disarmed = true
 }
 
 // SetGoalDurable updates the Goal only when its sidecar can be replaced
@@ -2975,36 +2970,6 @@ func (c *Controller) PauseGoal() bool {
 // GoalRuntime returns the active Goal's usage/runtime summary for frontends.
 func (c *Controller) GoalRuntime() GoalRuntimeView {
 	return c.goals.runtimeView()
-}
-
-// goalEvaluatorEvidence assembles the bounded evaluator's evidence: the goal
-// contract, the current assistant final, a todo/readiness summary,
-// turn/budget state, and the last
-// continuation reason. Every field is treated as untrusted by the evaluator.
-func (c *Controller) goalEvaluatorEvidence() goaleval.GoalEvidence {
-	goal, _ := c.goals.snapshot()
-	ev := goaleval.GoalEvidence{
-		GoalContract:           goal,
-		LastContinuationReason: c.goals.lastContinuationReasonText(),
-	}
-	if c.executor != nil {
-		ev.AssistantFinal = lastAssistantText(c.History())
-		todos := c.goalTodos()
-		incomplete := 0
-		for _, t := range todos {
-			if t.Status != "completed" {
-				incomplete++
-			}
-		}
-		rr := c.executor.ReadinessResult()
-		readinessText := "ready"
-		if rr.Reason != "" {
-			readinessText = rr.Reason
-		}
-		ev.TodoSummary = fmt.Sprintf("todos: %d total, %d incomplete; delivery readiness: %s", len(todos), incomplete, readinessText)
-	}
-	ev.TurnStatus = c.goals.budgetStatusText()
-	return ev
 }
 
 func (c *Controller) persistGoalDeliveryCheckpoint() {

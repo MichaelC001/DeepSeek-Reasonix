@@ -21,6 +21,13 @@ func TestRemoteTabCommandsForwardedToServe(t *testing.T) {
 	cleanupRemoteTabPumps(t, a)
 	meta := openReadyRemoteTab(t, a, RemoteTabOpenOptions{NewSession: true})
 	var profileDrained []string
+	beforeRetiredFloorCall := len(fs.recorded())
+	if err := a.SetRemoteTabQualityFloor(meta.ID, "delivery"); err != nil {
+		t.Fatalf("retired quality-floor compatibility call: %v", err)
+	}
+	if got := len(fs.recorded()); got != beforeRetiredFloorCall {
+		t.Fatalf("retired quality-floor call reached the remote server: before=%d after=%d", beforeRetiredFloorCall, got)
+	}
 
 	steps := []struct {
 		name string
@@ -48,7 +55,6 @@ func TestRemoteTabCommandsForwardedToServe(t *testing.T) {
 		}, `POST /composer-profile {"collaborationMode":"plan","goal":"","toolApprovalMode":"auto"}`},
 		{"goal", func() error { return a.SetRemoteTabGoal(meta.ID, "ship it") }, `POST /goal {"goal":"ship it"}`},
 		{"effort", func() error { return a.SetRemoteTabEffort(meta.ID, "high") }, `POST /effort {"level":"high"}`},
-		{"quality-floor", func() error { return a.SetRemoteTabQualityFloor(meta.ID, "delivery") }, `POST /quality-floor {"floor":"delivery"}`},
 		{"pause-goal", func() error { return a.PauseRemoteTabGoal(meta.ID) }, "POST /goal/pause {}"},
 		{"resume-goal", func() error { return a.ResumeRemoteTabGoal(meta.ID) }, "POST /goal/resume {}"},
 		{"cancel-jobs", func() error { return a.CancelRemoteTabJobs(meta.ID, []string{"job-1"}) }, `POST /jobs/cancel {"ids":["job-1"]}`},

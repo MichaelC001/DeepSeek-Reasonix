@@ -93,17 +93,8 @@ func (a *Agent) beginRunTurn(ctx context.Context, input string, pinned pinnedRev
 		a.task.checkpoint = evidence.DeliveryCheckpoint{ScopeID: scope.ID}
 	}
 	a.leasePendingBackgroundEvidence(ctx)
-	a.turn.deliveryCriteriaEstablished = a.hasIncompleteCanonicalCriteria() ||
-		(a.task.ledger != nil && a.task.ledger.HasSuccessfulTodoWrite()) ||
-		(scoped && a.task.checkpoint.CriteriaEstablished)
-	// Classify delivery expectations from the task text. Sub-agent spawners
-	// pass the pristine task through Options.ClassifierTaskText (a trusted
-	// host channel) because their Run input carries host framing whose
-	// incidental verbs — "file tools resolve relative paths" — once classified
-	// every workspace-wrapped subagent prompt as a mutation request and
-	// deadlocked read-only subagents. Without the override the raw input is
-	// classified verbatim: stripping user-controllable markup here would let
-	// input dressed up as host framing disarm the delivery gates.
+	// Use the owning task text for explicit action constraints and recovery.
+	// Child framing must not be interpreted as an instruction from the user.
 	a.turn.turnInput = a.classifierTaskText
 	if scoped && strings.TrimSpace(scope.TaskText) != "" {
 		a.turn.turnInput = scope.TaskText
@@ -135,7 +126,6 @@ func (a *Agent) beginRunTurn(ctx context.Context, input string, pinned pinnedRev
 	}
 	a.recordRebuildAuthorization()
 	a.turn.engine = runtimepolicy.NewEngine(a.turn.constraints)
-	a.rebuildTurnContract()
 	// A cancelled/error turn leaves a provider-excluded recovery record at the
 	// transcript tail. Fold its bounded facts into this new user turn exactly
 	// once; the user's raw text remains the source above.
@@ -164,7 +154,6 @@ func (a *Agent) beginRunTurn(ctx context.Context, input string, pinned pinnedRev
 	// old literal spelled out are already there from the reset at the top.
 	state = &a.turn
 	state.seenTodoProgress = make(map[string]struct{})
-	state.executorHandoff = a.executorHandoffGuard && strings.Contains(input, executorHandoffMarker)
 	state.input = input
 	state.budget = runBudget{started: time.Now()}
 	state.todoProgress, state.trackingTodoProgress = a.canonicalTodoProgress()
@@ -394,25 +383,12 @@ func (a *Agent) handleFinalResponse(ctx context.Context, state *turnRuntime, tex
 			StopReason: reason,
 		}
 	}
-	// The phase belongs at the caller: ReadinessResult runs the same check for
-	// the host, outside any turn. Reopening working keeps the continuation paths
-	// below, each of which starts a provider round, out of the tool bucket.
-	a.emitTurnPhase(event.TurnPhaseVerifying)
-	readiness := a.finalReadinessCheckFor()
-	a.emitTurnPhase(event.TurnPhaseWorking)
-	if state.graceRound && (readiness.reason != "" || !hasVisibleFinalAnswer(text)) {
-		a.contextManager().ObserveUsage(usage)
-		return false, a.gracePause(state)
-	}
 	if state.graceRound {
 		// Explicit max_steps and spend budgets are user-selected boundaries.
 		// Preserve the summary, then return a resumable pause so Goal does not
 		// immediately open another Run and silently bypass the chosen limit.
 		a.contextManager().ObserveUsage(usage)
 		return false, a.gracePause(state)
-	}
-	if stopped, err := a.handleReadinessGap(readiness); stopped {
-		return false, err
 	}
 	if !hasVisibleFinalAnswer(text) {
 		// Harness-style termination accepts a reasoning-only clean stop. Only
@@ -429,20 +405,6 @@ func (a *Agent) handleFinalResponse(ctx context.Context, state *turnRuntime, tex
 			a.contextManager().ObserveUsage(usage)
 			return true, nil
 		}
-	}
-	if a.hostContinuationEnabled(ctx) && state.executorHandoff && !state.usedAnyTool && state.terminal.handoffNudges < maxExecutorHandoffNudges && shouldNudgeExecutorHandoff(state.input, text) {
-		state.terminal.handoffNudges++
-		a.svc.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo, Code: event.NoticeCodeExecutorHandoff, Text: executorHandoffNoticeText(), Detail: "executor answered without taking any action; nudging it to use its tools"})
-		a.sess.conversation.Add(HostGeneratedUserMessage(a.withTurnPreferences(executorHandoffRetryMessage())))
-		a.contextManager().ObserveUsage(usage)
-		return true, nil
-	}
-	if a.continueStandardTodo(ctx, state) {
-		a.contextManager().ObserveUsage(usage)
-		return true, nil
-	}
-	if readiness.applies || a.turn.readinessRecovered {
-		event.RecordReadinessAudit(a.svc.sink, readiness.audit(evidence.ReadinessAllowed, a.turn.readinessRecovered))
 	}
 	a.emitTurnShadows(a.turn.turnInput)
 	if !a.closeSteerIntakeIfIdle() {
@@ -577,7 +539,7 @@ func (a *Agent) unavailableContextualToolCalls(ctx context.Context, calls []prov
 	seen := make(map[string]struct{}, len(calls))
 	for _, call := range calls {
 		t, canonical, ambiguous := a.svc.tools.ResolveCall(call.Name)
-		if t == nil || len(ambiguous) > 0 {
+		if t == nil || len(ambiguous) > 0 || t.Name() == "complete_step" {
 			continue
 		}
 		contextual, ok := t.(tool.ContextualTool)

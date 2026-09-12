@@ -8,7 +8,8 @@ import (
 // Role vocabulary re-exported for old frontends. Runtime constraints live in
 // internal/runtimepolicy; these names only parse compat inputs.
 
-// AgentPreset label constants; light and its aliases fold to standard.
+// AgentPreset label constants retained for wire compatibility. Every known
+// value folds to standard and no longer changes runtime behavior.
 const (
 	AgentPresetStandard = string(agentpreset.Standard)
 	AgentPresetDelivery = string(agentpreset.Delivery)
@@ -22,7 +23,7 @@ const (
 )
 
 // NormalizeAgentPreset maps free-form and legacy values to the canonical
-// role label. Light folds to standard; unknown values return the input
+// compatibility label. Known legacy values fold to standard; unknown values return the input
 // unchanged so callers can surface an error.
 func NormalizeAgentPreset(raw string) string {
 	if p, err := agentpreset.Normalize(raw); err == nil {
@@ -37,8 +38,8 @@ func NormalizeAgentPresetErr(raw string) (string, error) {
 	return string(p), err
 }
 
-// NormalizeTokenMode is the deprecated alias that returns legacy tokenMode
-// names (full/delivery) for dual-write and older clients.
+// NormalizeTokenMode is the deprecated alias that returns the fixed full
+// tokenMode value for older clients.
 func NormalizeTokenMode(mode string) string {
 	return agentpreset.LegacyTokenMode(agentpreset.FromLegacyTokenMode(mode))
 }
@@ -79,7 +80,6 @@ func HostControlToolNames() []string {
 		"ask",
 		"update_goal",
 		"todo_write",
-		"complete_step",
 	}
 }
 

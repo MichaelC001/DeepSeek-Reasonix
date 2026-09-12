@@ -425,7 +425,6 @@ export function AppRuntimeView(props: AppRuntimeViewProps) {
           panels: session.workspacePanelCommands,
           inserts: session.insertCommands,
           verification: session.turnVerificationCommands,
-          qualityFloor: session.profileProjection.composerProfile.qualityFloor,
           onFileTreeRefresh: local.refreshComposerFileRefs,
           onSessionRevertCommitted: session.sessionUndo.handleSessionRevertCommitted,
           onOpenInTerminal: core.remoteSurfaceActive ? undefined : session.terminalPanelCommands.openTerminalForPath,

@@ -922,8 +922,5 @@ func (a *App) SetRemoteTabGoal(tabID, goal string) error {
 }
 
 func (a *App) SetRemoteTabQualityFloor(tabID, floor string) error {
-	return a.remoteTabPost(tabID, "/quality-floor", map[string]any{"floor": floor})
+	return a.validateRemoteQualityFloor(tabID, floor)
 }
-
-// RemoteTabSnapshot mirrors the frontend shape: raw serve payloads passed
-// through verbatim so the surface decides how to consume them.

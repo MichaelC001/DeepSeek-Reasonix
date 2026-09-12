@@ -10,7 +10,6 @@ import (
 	"reasonix/internal/event"
 	"reasonix/internal/evidence"
 	"reasonix/internal/i18n"
-	"reasonix/internal/taskcontract"
 	"reasonix/internal/tool"
 )
 
@@ -171,13 +170,9 @@ func (a *Agent) recordOperationOutcome(plan *toolCallPlan, rec evidence.Receipt,
 	switch {
 	case rec.Mutation || rec.Write:
 		ops.Apply(rec.OperationID, ref)
-		// Ordinary work settles on the real result. Only the Delivery floor
-		// holds a change open for verification and review, so a routine edit
-		// never becomes a bookkeeping task the model has to clear.
-		if a.turn.constraints.PolicyFloor != taskcontract.PolicyFloorDelivery {
-			a.auditOperation(evidence.MetricOperationSettled, ops.Settle(rec.OperationID))
-		}
-		a.advanceTodoForOperation(rec)
+		// Ordinary work settles on the real result; verification and review
+		// remain separate evidence instead of keeping the mutation open.
+		a.auditOperation(evidence.MetricOperationSettled, ops.Settle(rec.OperationID))
 	case ref.Kind == evidence.ReceiptKindVerification || ref.Kind == evidence.ReceiptKindReview:
 		if covered, attached := ops.AttachLatestVerification(ref); attached {
 			a.auditOperation(evidence.MetricVerificationAutoAttached, covered)

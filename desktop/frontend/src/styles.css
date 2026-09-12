@@ -37160,7 +37160,6 @@ body > .mermaid-diagram--fullscreen {
 .composer-meta--unified .composer-meta__control--content { order: 0; }
 .composer-meta--unified .composer-meta__control--approval { order: 1; }
 .composer-meta--unified .composer-meta__control--intent { order: 2; }
-.composer-meta--unified .composer-meta__control--delivery { order: 3; }
 :root[data-theme-style] .composer-meta--unified .composer-meta__control--model,
 .composer-meta--unified .composer-meta__control--model {
   order: 4;

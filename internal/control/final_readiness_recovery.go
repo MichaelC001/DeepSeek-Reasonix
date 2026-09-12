@@ -10,7 +10,7 @@ const (
 	// and ACP. It is additive and optional, so older clients remain compatible.
 	FinalReadinessRecoveryAction = "final_readiness_recovery"
 	ContinueChecksCommand        = "/continue-checks"
-	defaultContinueChecksPrompt  = "Continue the remaining final checks, preserve completed work, and only finish after the host readiness requirements pass."
+	defaultContinueChecksPrompt  = "Continue checking the work. Preserve completed changes, run relevant checks, and report the observed results and anything you could not verify."
 )
 
 // ParseFinalReadinessRecoveryCommand converts the explicit slash action into a
@@ -39,9 +39,10 @@ func (c *Controller) RunFinalReadinessRecovery(ctx context.Context, input string
 // a stale recovery request.
 func (c *Controller) RunFinalReadinessRecoveryWithAdmission(ctx context.Context, input string, onAdmitted func()) error {
 	return c.runSynchronousTurn(ctx, nil, func(runCtx context.Context) error {
-		if c.executor == nil || !c.executor.PrepareFinalReadinessRecovery() {
+		if c.executor == nil {
 			return ErrNoFinalReadinessRecovery
 		}
+		c.executor.PrepareFinalReadinessRecovery()
 		if onAdmitted != nil {
 			onAdmitted()
 		}
@@ -53,9 +54,10 @@ func (c *Controller) RunFinalReadinessRecoveryWithAdmission(ctx context.Context,
 // ledger for one explicit asynchronous continuation.
 func (c *Controller) SubmitFinalReadinessRecovery(display, input string) {
 	c.runGuarded(func(ctx context.Context) error {
-		if c.executor == nil || !c.executor.PrepareFinalReadinessRecovery() {
+		if c.executor == nil {
 			return ErrNoFinalReadinessRecovery
 		}
+		c.executor.PrepareFinalReadinessRecovery()
 		return c.runGoalLoopWithRawDisplay(ctx, input, input, display)
 	})
 }

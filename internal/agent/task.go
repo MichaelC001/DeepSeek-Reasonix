@@ -1699,16 +1699,11 @@ func RunSubAgentWithSession(ctx context.Context, prov provider.Provider, reg *to
 	sub := New(prov, reg, sess, opts, sink)
 	sub.SetPlanMode(planWorkflow)
 	if err := sub.Run(ctx, prompt); err != nil {
-		// Still merge any partial child evidence so parent gates see real writes.
+		// Preserve actual partial child execution even when the child fails.
 		mergeChildEvidence(ctx, sub)
-		if answer, ok := salvageReadinessExhaustedAnswer(sub, sess, opts, err); ok {
-			return composeSubagentAnswer(ctx, answer, sub, SubagentWriteClaim(ctx), opts.ClassifierTaskText), nil
-		}
 		return "", fmt.Errorf("sub-agent: %w", err)
 	}
-	// Review/security subagents must hand back a typed report the parent's
-	// delivery gate can verify; prose alone would leave the gate demanding a
-	// review forever with no way to tell why it never arrives. A run that
+	// Explicit review calls require the structured report they requested. A run that
 	// finished without the report gets bounded completion nudges on the same
 	// session (evidence preserved, so review_report can still cite the reads it
 	// already earned) before the whole run is declared failed.

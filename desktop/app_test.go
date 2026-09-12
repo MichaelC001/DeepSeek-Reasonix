@@ -5587,8 +5587,7 @@ func TestSetTokenModeRebuildsController(t *testing.T) {
 	assertPinnedCompatPersisted(t, app, tab)
 }
 
-func TestSetTokenModeDeliveryRebuildsAndPersistsProfile(t *testing.T) {
-	// SetTokenMode(delivery) now writes the session quality floor in place.
+func TestSetTokenModeDeliveryIsCompatibilityNoOp(t *testing.T) {
 	isolateDesktopUserDirs(t)
 
 	app := NewApp()
@@ -5610,11 +5609,11 @@ func TestSetTokenModeDeliveryRebuildsAndPersistsProfile(t *testing.T) {
 	if tab.Ctrl == nil || tab.Ctrl != old {
 		t.Fatalf("controller identity changed: got %p want %p", tab.Ctrl, old)
 	}
-	if got := old.QualityFloor(); got != control.QualityFloorDelivery {
-		t.Fatalf("controller QualityFloor = %q, want delivery", got)
+	if got := old.QualityFloor(); got != control.QualityFloorStandard {
+		t.Fatalf("controller QualityFloor = %q, want standard", got)
 	}
-	if got := tab.qualityFloor; got != control.QualityFloorDelivery {
-		t.Fatalf("tab qualityFloor = %q, want delivery", got)
+	if got := derivedQualityFloor(tab).floor; got != control.QualityFloorStandard {
+		t.Fatalf("tab qualityFloor = %q, want standard", got)
 	}
 
 	if err := app.SetTokenMode(boot.TokenModeFull); err != nil {

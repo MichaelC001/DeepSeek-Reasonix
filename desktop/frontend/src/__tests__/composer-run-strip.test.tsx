@@ -211,8 +211,7 @@ console.log("\ncomposer run strip");
   dom.window.close();
 }
 
-// Execution modes are gone. Composer keeps collaboration, tool approval, and
-// the independent quality floor, but no execution-setting trigger or menu.
+// Execution modes and the independent quality-floor selector are gone.
 {
   const dom = installDom();
   const { root } = await renderComposer();
@@ -630,25 +629,16 @@ console.log("\ncomposer run strip");
 
 {
   const dom = installDom();
-  const floors: string[] = [];
   const modeChanges: string[] = [];
-  const { root, rerender } = await renderComposer({ collaborationMode: "plan", onSetQualityFloor: floor => floors.push(floor), onSetCollaborationMode: mode => modeChanges.push(mode) });
-  eq(document.querySelector(".composer-delivery-trigger"), null, "default standard has no delivery chip");
+  const { root } = await renderComposer({ collaborationMode: "plan", onSetCollaborationMode: mode => modeChanges.push(mode) });
+  eq(document.querySelector(".composer-delivery-trigger"), null, "composer has no delivery chip");
   await act(async () => {
     document.querySelector<HTMLButtonElement>(".composer-content-trigger")?.click();
     await flushTimers();
   });
   const toggle = document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]');
-  if (!toggle) throw new Error("delivery toggle missing");
-  eq(toggle.getAttribute("aria-checked"), "false", "delivery is off by default");
-  await act(async () => { toggle.click(); await flushTimers(); });
-  eq(floors.at(-1), "delivery", "delivery toggle enables delivery verification");
-  await rerender({ qualityFloor: "delivery" });
-  const chip = document.querySelector<HTMLButtonElement>(".composer-delivery-trigger");
-  if (!chip) throw new Error("delivery chip missing");
-  await act(async () => { chip.click(); await flushTimers(); });
-  eq(floors.at(-1), "standard", "closing delivery chip restores implicit standard");
-  eq(modeChanges.length, 0, "delivery does not change Plan or Goal mode");
+  eq(toggle, null, "content menu has no delivery toggle");
+  eq(modeChanges.length, 0, "opening the menu does not change Plan mode");
   await act(async () => root.unmount());
   dom.window.close();
 }

@@ -17819,6 +17819,13 @@
     "eventwire.CompletionReceipt": {
       "fields": [
         {
+          "name": "assessmentKind",
+          "optional": true,
+          "type": {
+            "kind": "string"
+          }
+        },
+        {
           "name": "diff",
           "optional": true,
           "type": {

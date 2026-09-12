@@ -250,7 +250,7 @@ export type ComposerSurfaceInput = {
     submitDisabledReason?: string;
   };
   base: ComposerBase;
-  tab: { readOnly?: boolean; floorInferred?: boolean; sessionPath?: string; remote?: { hostId: string; workspace: string } } | undefined;
+  tab: { readOnly?: boolean; sessionPath?: string; remote?: { hostId: string; workspace: string } } | undefined;
   tabId: string | undefined;
   profile: ReturnType<typeof useComposerProfileProjection>;
   router: { handleSend: ComposerProps["onSend"]; handleSteer: ComposerProps["onSteer"] };
@@ -290,9 +290,6 @@ export function buildComposerSurface(input: ComposerSurfaceInput): DecisionFoote
       running: base.running || (!view.remote && view.rewindCommitting),
       collaborationMode: profile.collaborationMode,
       toolApprovalMode: profile.toolApprovalMode,
-      qualityFloor: profile.composerProfile.qualityFloor,
-      floorInferred: (input.tab?.floorInferred ?? false) && !profile.composerProfile.pending.qualityFloor,
-      onSetQualityFloor: profile.applyQualityFloor,
       goal: profile.goal,
       tabId: input.tabId,
       onSend: view.remote ? remoteComposer.send : router.handleSend,

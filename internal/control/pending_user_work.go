@@ -5,7 +5,7 @@ import "reasonix/internal/sessioninbox"
 // hasPendingUserWork reads only already-owned state and an already open inbox.
 // It never creates an inbox or holds a Controller lock while taking an
 // Agent/Store lock. A busy or unreadable durable inbox conservatively yields to
-// potential user work, which must win over an automatic Todo nudge.
+// potential user work, which must win over automatic Goal continuation.
 func (c *Controller) hasPendingUserWork() bool {
 	if c == nil {
 		return false
@@ -32,9 +32,6 @@ func (c *Controller) hasPendingUserWork() bool {
 		return true
 	}
 	for _, item := range snapshot.Items {
-		if item.RunID != "" && item.RunID != sessioninbox.ProcessRunID() {
-			return true
-		}
 		switch item.State {
 		case sessioninbox.StateQueued, sessioninbox.StateBlocked,
 			sessioninbox.StateUncertain, sessioninbox.StateSteerAccepted:

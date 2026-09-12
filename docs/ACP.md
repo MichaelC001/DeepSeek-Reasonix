@@ -175,6 +175,9 @@ send `session/set_config_option` with `configId` `agent_preset` or `work_mode`
 (including legacy aliases `profile`, `runtime_profile`, `token_mode`) receive a
 successful no-op: nothing switches, nothing rebuilds, and the result carries a
 `deprecatedNotice` explaining the adaptive standard execution.
+The returned `configOptions` list does not advertise these retired selectors or
+`quality_floor`. A known legacy `quality_floor` value is accepted as the same
+no-op, while unknown values still return `InvalidParams`.
 
 For older clients, `session/set_model` remains available. The legacy
 `session/set_mode` values `default` and `auto` are also accepted as Normal + Ask

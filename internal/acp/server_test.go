@@ -223,12 +223,12 @@ func (f *configurableFactory) SessionConfigState(_ context.Context, p SessionCon
 	}
 	runtimeProfile := strings.TrimSpace(p.RuntimeProfile)
 	if runtimeProfile == "" || runtimeProfile == "full" {
-		runtimeProfile = "balanced"
+		runtimeProfile = "standard"
 	}
 	if runtimeProfile == "light" {
 		runtimeProfile = "economy"
 	}
-	if runtimeProfile != "economy" && runtimeProfile != "balanced" && runtimeProfile != "delivery" {
+	if runtimeProfile != "standard" && runtimeProfile != "economy" && runtimeProfile != "balanced" && runtimeProfile != "delivery" {
 		return SessionConfigState{}, os.ErrInvalid
 	}
 	return SessionConfigState{
@@ -1159,8 +1159,8 @@ func TestServeSessionAxesRestoreFromMetadata(t *testing.T) {
 	if approval.CurrentValue != control.ToolApprovalAuto || lr.Modes == nil || lr.Modes.CurrentModeID != sessionModePlan {
 		t.Fatalf("reloaded axes = approval:%+v modes:%+v", approval, lr.Modes)
 	}
-	if got := reloadedFactory.buildAt(t, 0).RuntimeProfile; got != "delivery" {
-		t.Fatalf("reloaded build profile = %q, want delivery", got)
+	if got := reloadedFactory.buildAt(t, 0).RuntimeProfile; got != "standard" {
+		t.Fatalf("reloaded build profile = %q, want standard", got)
 	}
 	promptCh := reloadedClient.callAsync("session/prompt", SessionPromptParams{
 		SessionID: sessionID,
@@ -1688,8 +1688,8 @@ func TestServeSessionLoadFallsBackFromStaleSavedModel(t *testing.T) {
 	if got := factory.buildAt(t, 0).Model; got != "fast" {
 		t.Fatalf("fallback build model = %q, want fast", got)
 	}
-	if got := factory.buildAt(t, 0).RuntimeProfile; got != "balanced" {
-		t.Fatalf("old metadata runtime profile = %q, want balanced", got)
+	if got := factory.buildAt(t, 0).RuntimeProfile; got != "standard" {
+		t.Fatalf("old metadata runtime profile = %q, want standard", got)
 	}
 	var loaded SessionLoadResult
 	if err := json.Unmarshal(loadResp.Result, &loaded); err != nil {

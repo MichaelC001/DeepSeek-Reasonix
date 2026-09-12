@@ -645,7 +645,7 @@ Mode meanings:
 | Ask | Prompts for fallback writer approvals. |
 | Auto | Auto-allows fallback approvals, including interactive `remember`/`forget`; explicit `ask` / `deny` rules still apply. |
 | YOLO | Skips ordinary tool approval prompts, including `remember`/`forget`; `deny`, user `ask` questions, and plan approval prompts still wait. |
-| Plan | Directs the model to plan first — a plan-first workflow, not an all-tools read-only mode. Built-in writers still follow the active Ask/Auto/YOLO rules and Sandbox; installed MCP writers, destructive targets, and readers from unauthorized servers are hard-blocked for the whole planning phase (approval cannot release them; they return once Plan exits), and explicit phase-only tools such as `complete_step` wait until approval. |
+| Plan | Plans before implementation. State-changing actions are blocked until approval, including Yolo, proxy tools, and subagents. After approval, ordinary permissions and Sandbox rules still apply. |
 | Goal | Pursues a saved objective until complete, blocked, or cleared. |
 
 ## Permissions & sandbox
@@ -1134,10 +1134,7 @@ pause` to pause a running goal manually. `/goal status` shows turns, requests,
 tokens, and work time. Repeated host failures, zero-evidence rounds, and Todo
 stall thresholds inject a strategy redirect and reset their intervention epoch;
 they do not pause the Goal. At the end of every goal turn
-the model reports its disposition through the structured `update_goal` tool
-(continue/complete/blocked); when no report arrives, an independent bounded
-evaluator judges the turn once, and any evaluator failure pauses the goal
-instead of continuing silently.
+the model reports its judgment through `update_goal`: `complete` commits its completion declaration at normal turn end, `blocked` stops continuation, and `continue` or no report keeps the Goal active. No evaluator or host quality check decides completion. Failed checks and unfinished todos remain unchanged. Restoring or forking loads the Goal without activating it; start or resume explicitly.
 
 For complex work, write the objective as a
 [task contract](./TASK_CONTRACT.md): Context, Request, Output format,
@@ -1148,24 +1145,11 @@ information only the user can provide.
 
 Legacy simple/write/research classes are still inferred for sidecar and CLI
 compatibility, but they no longer select an execution quota. There is no
-separate research runtime to configure. Goal state stays in the normal session sidecar, progress
-comes only from novel host receipts, canonical todos, `complete_step`, review
-and the evidence checkpoint, and completion is decided by closed-loop readiness
-plus the bounded Goal evaluator. An `update_goal`
-`completion.unverified` account is honored for checks the model could not run; a second
-identical complete on the same leftover checks finishes the Goal instead of
-looping. Legacy `.reasonix/autoresearch/<task-id>/` archives are
-read-only: an explicit old path can be recovered as an ordinary Goal, but new
-runs never create or update those directories. Deprecated budget flags are
-accepted for compatibility but are hidden from help and completion.
+separate research runtime to configure. Goal state and actual usage stay in the normal session sidecar. Legacy `.reasonix/autoresearch/<task-id>/` archives remain read-only; explicit old paths can be recovered as ordinary Goals. Deprecated budget flags are accepted for compatibility but hidden from help and completion.
 
-### Ordered batch sign-offs
+### Model task progress
 
-The host may process multiple `complete_step` calls from one provider tool-call
-round. They must follow the canonical Todo order, and each step's work and
-evidence must already exist before its sign-off call. The host advances the
-Todo state after each successful call; skipped, pending, or out-of-order steps
-remain rejected. This does not change the provider-visible tool schema.
+`todo_write` updates task progress. The host does not finish todos when a turn or Goal ends. `complete_step` is hidden from default discovery but accepts old calls for one unambiguous existing todo; it records a declaration without demanding proof or advancing the next item.
 
 ## @ references
 
@@ -1366,23 +1350,10 @@ non-destructive MCP, while a strict child requires an explicit reader hint and
 never exposes writers at all.
 
 Reasonix uses **fact-driven execution**. Ordinary requests always enter the
-executor. There is no automatic task mode. The one session role is the quality floor: standard (default) or delivery; facts can still raise it. Planner,
+executor. There is no automatic task mode or selectable quality floor. Planner,
 Goal, permission, sandbox, and the task contract are independent states.
 
-Standard and Delivery do not perform general hidden final-readiness retries.
-Delivery returns readiness gaps as recoverable results and exposes the existing
-`Continue checks` action; the user must activate it before another recovery turn
-starts. Standard keeps verification, review and sign-off gaps as completion
-attention. Separately, a Standard execution turn that successfully writes one
-current `in_progress` todo may continue inside the same foreground `Agent.Run`
-when the trusted host knows the user asked for execution. This repair is excluded
-from Plan, Goal, Delivery, read-only, recovery, cancellation, and queued-user-work
-boundaries. It sends one fixed continuation prompt, permits a second only after a
-new host receipt, and never exceeds two prompts. Goal and approved Plan retain
-their own state-machine continuation. Historical canonical todos remain visible
-but idle ones render as Ready to continue rather than In progress; their Continue
-action targets the exact visible session. Provider-level stream/truncation
-recovery remains independent of final-readiness recovery.
+Ordinary turns end when the model ends normally, even with unfinished todos or failed checks. There are no quality retries or todo-driven continuation rounds. Active Goals alone drive automatic continuation; approved Plans execute as ordinary tasks. Historical checkpoints remain available through an explicit `Continue checks` request, without restoring quality gates. Protocol recovery, cancellation, and resource limits remain independent.
 
 Every task shares the same provider-visible core tool surface: direct
 read/bash/edit/write, background-shell lifecycle tools, `ask`/`compress` when
@@ -1392,23 +1363,7 @@ never expands the top-level provider schema, so the prompt-cache tool prefix
 stays stable across every task. The Harness minimal preset is not a task
 complexity mode.
 
-The model decides whether to investigate, write todos, or spawn a sub-agent.
-The host then builds verification obligations from the actual tool call, the
-real target path, and the execution receipt:
-
-- A read-only call creates no obligation.
-- A local docs, i18n, fixture, or style edit is advisory targeted verification.
-- A single production-file edit is recoverable targeted verification plus
-  diff review.
-- Multi-file or unclear local writes require a todo and criteria first.
-- Schema, migration, public-interface, auth, or destructive work becomes
-  strict verification, review, and sign-off after the write is observed.
-- Goal items and approved Plan criteria are always strict.
-- Prompt words such as OAuth or token never create action risk by themselves.
-
-Meta tools such as `task`, `run_skill`, and `review` are not counted as mutations
-by themselves — only real child writes are. Read-only analysis remains available
-without forcing a write.
+The model decides whether to investigate, update todos, verify changes, or request review. User and project instructions stay in task context. File counts, authentication paths, schemas, migrations, and explicit verification language do not create host acceptance obligations. The host retains action permissions, preapproval Plan write restrictions, workspace leases, failed-batch barriers, and overwrite protection. Results show actual commands, failures, interruptions, and checks made stale by later edits; model completion reports are separate from these facts.
 
 For interactive frontends, Plan Mode is always an explicit user choice. Select
 Plan in the desktop collaboration-mode control or cycle to Plan with

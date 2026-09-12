@@ -79,7 +79,7 @@ func (*ReviewReportTool) Execute(ctx context.Context, args json.RawMessage) (str
 	msg := fmt.Sprintf("review_report accepted: kind=%s verdict=%s paths=%d findings=%d",
 		report.Kind, report.Verdict, len(report.ReviewedPaths), len(report.Findings))
 	if report.HasBlockingFinding() {
-		msg += " (blocking — parent delivery will require fixes and re-review)"
+		msg += " (reviewer reported blocking findings)"
 	}
 	return msg, nil
 }

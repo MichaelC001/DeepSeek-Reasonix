@@ -10,7 +10,6 @@ import (
 	"reasonix/internal/checkpoint"
 	"reasonix/internal/event"
 	"reasonix/internal/evidence"
-	"reasonix/internal/instruction"
 	"reasonix/internal/jobs"
 	"reasonix/internal/mcpinteraction"
 	"reasonix/internal/memory"
@@ -148,6 +147,11 @@ func (a *Agent) applyContextualToolGate(ctx context.Context, plan *toolCallPlan)
 }
 
 func contextualToolGateOutcome(ctx context.Context, target tool.Tool, name string) (toolOutcome, bool) {
+	// Hidden legacy calls remain executable; the independent Plan/permission
+	// gates still apply before execution.
+	if target.Name() == "complete_step" {
+		return toolOutcome{}, false
+	}
 	contextual, ok := target.(tool.ContextualTool)
 	if !ok || contextual.ProviderVisible(ctx) {
 		return toolOutcome{}, false
@@ -320,7 +324,6 @@ func (a *Agent) commitResolvedSkip(plan *toolCallPlan) (toolOutcome, bool) {
 // applyDeliveryPolicyGates enforces global deterministic shell contracts plusclosed-loop-only criteriarules,
 // and classifies mutation/verification.
 func (a *Agent) applyDeliveryPolicyGates(turn *turnRuntime, plan *toolCallPlan) (toolOutcome, bool) {
-	closedLoop := a.closedLoopActive()
 	// Global deterministic shell contract (ordinary + closed loop). PowerShell
 	// 5.1 &&/|| is enforced inside the bash tool itself so descriptor and error text stay shell-accurate;
 	// theagentlayers apply command-shape protections.
@@ -329,9 +332,6 @@ func (a *Agent) applyDeliveryPolicyGates(turn *turnRuntime, plan *toolCallPlan) 
 	if plan.evidenceName == "bash" {
 		if evidence.BashToolCallMasksVerificationExit(plan.evidenceArgs) {
 			msg := evidence.ShellContractPreflightMessage("mask_exit")
-			if closedLoop {
-				msg = "blocked: the trailing echo/printf of $? masks the verifier's exit status, so this command would look successful even when the check failed. Run the verifier or read-only extraction pipeline by itself and let its exit status be the tool result; for example: tail ... | head ... | node --check -"
-			}
 			return toolOutcome{
 				output:    msg,
 				blocked:   true,
@@ -340,14 +340,10 @@ func (a *Agent) applyDeliveryPolicyGates(turn *turnRuntime, plan *toolCallPlan) 
 			}, true
 		}
 		mixed := evidence.BashToolCallMixesMutationAndMaskableVerification
-		if closedLoop {
-			mixed = evidence.BashToolCallMixesMutationAndVerification
-		}
+
 		if mixed(plan.evidenceArgs) {
 			msg := evidence.ShellContractPreflightMessage("mixed")
-			if closedLoop {
-				msg = "blocked: this command mixes a verification check with a segment that may write state. Run the state-changing preparation separately while a todo is in_progress, then run a read-only verification command. For generated input, prefer a host-recognized read-only pipeline into the verifier (for example: tail ... | head ... | node --check -) instead of writing a temporary file."
-			}
+
 			return toolOutcome{
 				output:    msg,
 				blocked:   true,
@@ -364,15 +360,6 @@ func (a *Agent) applyDeliveryPolicyGates(turn *turnRuntime, plan *toolCallPlan) 
 				execution: shellPreflightExecution(plan, false),
 			}, true
 		}
-	}
-	// Closed-loop only: any opaque inline interpreter is unauditable as evidence.
-	if closedLoop && plan.evidenceName == "bash" && evidence.BashToolCallUsesOpaqueInlineInterpreter(plan.evidenceArgs) {
-		return toolOutcome{
-			output:    "blocked: closed-loop execution cannot audit inline interpreter source such as node -e or python -c, so executing it would become an opaque mutation and invalidate prior verification. For inspection, use read_file/grep or another host-proven read-only command. For validation, use a conventional verifier such as node --check, a project test/check/lint command, or a read-only extraction pipeline into the verifier. For an intentional state change, use a file tool or a script file under the current in_progress todo. " + evidence.VerificationCommandSummary(),
-			blocked:   true,
-			errMsg:    "blocked: opaque inline interpreter command",
-			execution: shellPreflightExecution(plan, false),
-		}, true
 	}
 
 	return toolOutcome{}, false
@@ -550,18 +537,12 @@ func (a *Agent) prepareToolExecution(ctx context.Context, plan *toolCallPlan) (t
 	if a.task.ledger != nil {
 		cctx = evidence.WithLedger(cctx, a.task.ledger)
 		cctx = evidence.WithSessionMessages(cctx, a.sess.conversation.Snapshot)
-		if a.closedLoopActive() {
-			cctx = evidence.WithClosedLoopExecution(cctx)
-		}
 	}
 	if !a.planMode.Load() {
 		cctx = a.withContractState(cctx)
 	}
 	if plan.planReplacementAuthorized {
 		cctx = tool.WithPlanReplacementAuthorization(cctx)
-	}
-	if len(a.projectChecks) > 0 {
-		cctx = instruction.WithChecks(cctx, a.projectChecks)
 	}
 	if a.svc.jobs != nil {
 		cctx = jobs.WithManager(cctx, a.svc.jobs)

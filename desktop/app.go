@@ -743,13 +743,9 @@ func (a *App) restoreOrBuildTabs() {
 			}
 			tab.model = entry.Model
 			tab.effort = cloneStringPtr(entry.Effort)
-			// The role entry seeds the quality floor: delivery (and legacy
-			// delivery labels) raise it; light folds to standard.
-			if entry.QualityFloor == control.QualityFloorDelivery {
-				tab.qualityFloor = control.QualityFloorDelivery
-			} else {
-				tab.qualityFloor = ""
-			}
+			// Legacy role fields remain readable, but the retired setting no
+			// longer changes restored-session behavior.
+			tab.qualityFloor = control.QualityFloorStandard
 			tab.mode = persistedTabMode(entry.Mode)
 			// Validate the persisted goal against the session's goal-state
 			// sidecar: a typed /new or /clear rotates the session through the
@@ -9868,7 +9864,7 @@ func (a *App) SetAgentPresetForTab(tabID, preset string) error {
 }
 
 // persistTabTokenMode persists the deprecated dual-write compatibility values
-// (agentPreset=balanced, tokenMode=full) so one-version-old clients keep
+// (agentPreset=standard, tokenMode=full) so one-version-old clients keep
 // parsing tab state and session metas. The values are fixed; nothing reads
 // them to alter runtime behavior.
 func (a *App) persistTabTokenMode(tab *WorkspaceTab) {

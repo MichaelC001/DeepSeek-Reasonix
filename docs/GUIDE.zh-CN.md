@@ -525,7 +525,7 @@ CLI/TUI 文本输入可通过 `[ui].cursor_shape` 设置光标形状，支持 `u
 | Ask | writer 兜底审批时询问。 |
 | Auto | 自动放行兜底审批，包括交互式 `remember`/`forget`；显式 `ask` / `deny` 规则仍生效。 |
 | YOLO | 跳过普通工具审批，包括 `remember`/`forget`；`deny`、用户 `ask` 问题和计划批准提示仍会等待。 |
-| Plan | 要求模型先规划——这是 plan-first 工作流，不是全部工具只读。内置 writer 仍遵守当前 Ask/Auto/YOLO 与 Sandbox；已安装 MCP writer、destructive 目标与未信任 reader 在整个规划阶段硬阻断（审批不能放行，退出 Plan 后恢复）；`complete_step` 等显式阶段工具需等到计划批准后。 |
+| Plan | 先规划，批准前硬阻断状态修改，包括 Yolo、代理工具和子 agent。批准后按普通任务执行，权限和 Sandbox 继续生效。 |
 | Goal | 持续追一个已保存目标，直到完成、阻塞或清除。 |
 
 ## 权限与沙盒
@@ -843,8 +843,8 @@ Reasonix 会把 `docs/` 中的 Markdown 文档和已审查的 `release-notes/rel
 联网搜索或凭经验回答。
 
 普通路径不需要设置、联网、向量数据库或 embedding 服务。搜索会优先匹配提问语言，同时支持
-显式 `en`、`zh-CN`、受众和目录筛选。Balanced 与 Delivery 默认暴露该工具；Economy 会在需要时
-按需连接 `docs` 来源。每次返回都会给出产品版本、不可变源码 revision 与语料 SHA-256 digest。
+显式 `en`、`zh-CN`、受众和目录筛选。标准执行默认暴露该工具。每次返回都会给出产品版本、
+不可变源码 revision 与语料 SHA-256 digest。
 发布 CI 会实际编译 CLI；只有编译后的清单与候选提交的 `docs/*.md`、
 `release-notes/releases.json` 和构建身份完全一致时才允许发布。因此，更新较快的在线
 `main-v2` 页面不会静默覆盖与本地版本匹配的说明或更新历史。
@@ -881,27 +881,20 @@ goal_token_budget = 20000000
 结果、mutation、verification、todo/签收变化和 review 会推进目标；完全相同的工具、参数与
 结果重复不会推进。相同宿主失败、零新增证据和 Todo 停滞的数字阈值只会注入纠偏提示、重置干预周期
 并要求缩小步骤、切换策略或说明真实 blocker，不会暂停 Goal。未配置对应预算时，累计 turn、token、
-真实 provider 请求数与实际工作时间只做统计展示。暂停会保留 Goal、todo、Delivery checkpoint 与运行历史——用
+真实 provider 请求数与实际工作时间只做统计展示。暂停会保留 Goal、todo、readiness checkpoint 与运行历史——用
 `/goal resume` 继续，`/goal pause` 可手动暂停运行中的目标；`/goal status` 只显示轮次、请求数、
 token、可选的显式 token 阈值和工作时间。每个目标 turn 结束时，模型通过结构化的 `update_goal` 工具报告
-continue/complete/blocked；没有报告时由独立的有界 evaluator 判定一次，任何 evaluator
-故障都会安全暂停目标而不是静默继续。
+`complete` 在正常结束边界提交模型完成声明，`blocked` 停止续跑，`continue` 或漏报保持活动并继续。没有独立 evaluator 或宿主质量验收。失败检查和未完成待办不被改写；恢复和分叉只加载目标，显式启动或恢复后才激活续跑。
 
 复杂任务建议把目标写成[任务合约](./TASK_CONTRACT.zh-CN.md)：Context、Request、
 Output format、Constraints 和 Pause policy。Goal 模式会把这些部分当作自主执行的边界；
 除非下一步需要不可逆或对外可见操作、任务范围变化，或必须由用户提供信息，否则会继续采用合理默认值推进，并在最后汇报假设与结果。
 
-旧的简单/写入/研究参数只作为兼容元数据解析，不再改变执行额度。Goal 状态只保存在普通会话 sidecar；进展只来自宿主工具 receipt、canonical todo、
-`complete_step`、review 与 Delivery checkpoint 中的新证据，最终由 Delivery readiness 和有界 Goal
-evaluator 判定。Light/Balanced 会接受 `update_goal` 里诚实申报的 `unverified` 检查缺口；同一检查缺口连续两次 `complete` 会结束 Goal，而不是继续验证循环。旧 `.reasonix/autoresearch/<task-id>/` 目录保持只读：显式引用旧路径时可恢复为
-普通 Goal，但新版本不会创建或改写这些目录。旧预算 flags 仅为兼容继续接受，不再出现在帮助和补全中。
+旧的简单/写入/研究参数仅作兼容元数据，不改变执行额度。Goal 和真实用量保存在普通会话 sidecar。旧 `.reasonix/autoresearch/<task-id>/` 目录保持只读，显式引用旧路径可恢复为普通 Goal。旧预算参数仍可解析，但不显示在帮助或补全中。
 
-### 按顺序批量签收步骤
+### 模型更新任务进度
 
-宿主可以在同一个 provider 工具调用轮次中处理多个 `complete_step`。这些调用必须严格遵循
-canonical Todo 顺序，并且每一步的工作和证据都必须在对应签收之前已经产生。每次成功签收后，
-宿主立即推进 Todo 状态；跳过、仍为 pending 或乱序的步骤仍会被拒绝。这不会改变 provider-visible
-工具 Schema。
+`todo_write` 更新任务进度，回合或 Goal 结束不会自动完成待办。`complete_step` 从默认发现中退役；旧调用仍可声明一个明确匹配的现有待办完成，不要求证明、不推进下一项，也不生成验证通过记录。
 
 ## @ 引用
 
@@ -1031,7 +1024,7 @@ writer，但可通过固定的 `use_capability` 代理调用已授权、非 dest
 普通 `task` / `fleet` 子 Agent 同样获得该固定代理（会话共享 Host/连接，每 Agent 独立
 frontend/ledger），可调用已安装或项目配置 MCP，不要求 `readOnlyHint`。这些调用走可信 MCP
 权限路径（实时授权复核 + 仅显式 deny）；writer/destructive 仍会串行、按 mutation 记账，并受
-Delivery 证据/租约门禁约束，而不是 Planner 的 Executor handoff。严格 `read_only_task` /
+现有证据/租约门禁约束，而不是 Planner 的 Executor handoff。严格 `read_only_task` /
 `read_only_skill` / review 子 Agent 共享稳定代理 schema 与连接复用，但执行仍要求
 `authorized && readOnlyHint && !destructiveHint`。Profile `allowed-tools` 中的 MCP 名称
 会转换为代理上的 capability ID 白名单；子 Agent 从不继承动态 `mcp__*` schema。
@@ -1046,17 +1039,9 @@ server 无法在这里提升权限。严格只读边界比独立 Planner 更窄�
 非 destructive MCP，而严格只读子会话必须有明确 reader hint，且根本不暴露 writer。
 
 Reasonix 使用**事实驱动执行**。普通请求一律进入 executor，没有自动任务模式；
-唯一的会话角色是质量底线（standard/delivery），事实仍可能高于它。Plan、Goal、permission、sandbox 与任务合同是互相独立的状态。
+没有可选的质量底线，普通请求统一采用标准执行行为。Plan、Goal、permission、sandbox 与任务合同是互相独立的状态。
 
-Standard 和 Delivery 都不会执行通用的隐藏 final-readiness 重试。Delivery 把 readiness 缺口
-作为可恢复结果返回并展示现有的「继续检查」入口，只有用户主动点击后才会启动恢复回合；
-Standard 的验证、复核和签收缺口仍作为完成提示处理。除此之外，Standard 有一个同一前台
-`Agent.Run` 内的 Todo 一致性保护：可信宿主确认用户要求执行、当前回合成功写入唯一
-`in_progress` Todo 且写工具可用时，会追加一次固定续做提示；只有产生新的宿主 receipt 才允许
-第二次，并且最多两次。Plan、Goal、Delivery、只读、恢复、取消和已有排队用户输入都会禁用该
-保护。Goal 和已批准 Plan 继续由各自状态机控制连续执行；provider 层的流中断/截断恢复与
-final-readiness 恢复相互独立。历史 canonical Todo 继续显示，但空闲时标记为「待继续」而不是
-「进行中」；用户点击「继续」只会发送到当前可见会话，不会把历史 Todo 隐式变成后台任务。
+普通回合在模型正常结束后结束，未完成待办和失败检查不会触发质量重试或额外续跑。只有已激活 Goal 驱动自动续跑，已批准 Plan 按普通任务执行。历史检查点保留「继续检查」入口，用户主动请求后可消费一次，但不会恢复质量门禁。协议恢复、取消和资源限制保持独立。
 
 所有任务共享同一套 provider 可见核心工具面（直接读/bash/编辑/写入、后台 shell
 生命周期工具，以及稳定的 `use_capability` 代理）。可选工具（搜索、MCP、skills、
@@ -1064,17 +1049,7 @@ subagents、docs、web_fetch 等）通过 `use_capability` 调度，不会扩展
 provider schema，因此任何任务都不会制造新的工具 schema 缓存前缀。Harness 的
 minimal preset 不是任务复杂度模式。
 
-模型按需决定是否调查、写 todo、调用子 Agent。宿主再根据具体 Tool Call、真实
-目标路径和执行回执建立验证义务：
-
-- 纯只读调用不产生义务。
-- 文档、i18n、fixture、样式的局部修改只需 Advisory 定向验证。
-- 单个生产文件修改是 Recoverable 定向验证加 diff review。
-- 多文件或范围不清的本地写入，先要求 todo 和验收标准。
-- Schema、迁移、公共接口、认证路径或破坏性操作，在实际写入后形成 Strict
-  验证、复查和签收。
-- Goal 项和已批准 Plan 的验收项全部为 Strict。
-- 用户话里出现 OAuth、token 等词本身不会产生动作风险。
+模型按需调查、更新待办、验证和调用审查；用户和项目要求保留在任务上下文。文件数量、鉴权路径、schema、迁移以及明确要求验证的文字均不生成宿主验收义务。宿主保留权限、Plan 批准前写入限制、工作区租约、失败批次阻断和覆盖保护。结果展示实际命令、失败、中断及后续修改导致检查过期的事实，模型完成声明单独展示。
 
 交互式前端中的计划模式始终由用户显式选择：桌面端在“协作方式”中选择计划模式，CLI 用
 `Shift+Tab` 切换到 Plan。Reasonix 先生成计划，待用户批准后工作流才切换到实施；规划期间的
@@ -1086,7 +1061,7 @@ reasoning-language 写项目级覆盖时，才给 shell 命令加 `--local`。
 
 桌面端“协作方式”菜单里的计划模式与目标模式的使用方法与注意事项，
 见 [`COLLABORATION_MODES.zh-CN.md`](./COLLABORATION_MODES.zh-CN.md)。没有自动
-任务模式；唯一的会话角色是质量底线（standard/delivery），验证义务由宿主根据真实工具动作建立。
+任务模式或可选质量底线；模型根据用户要求、项目说明和实际反馈判断是否完成；宿主不生成质量验收义务。
 
 桌面端“工具权限”里的询问、自动和 Yolo 模式的区别与使用场景，
 见 [`TOOL_APPROVAL_MODES.zh-CN.md`](./TOOL_APPROVAL_MODES.zh-CN.md)。

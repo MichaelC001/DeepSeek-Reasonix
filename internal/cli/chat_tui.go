@@ -26,7 +26,6 @@ import (
 	"reasonix/internal/billing"
 	"reasonix/internal/boot"
 	"reasonix/internal/command"
-	turncomp "reasonix/internal/completion"
 	"reasonix/internal/config"
 	"reasonix/internal/control"
 	"reasonix/internal/event"
@@ -3688,27 +3687,23 @@ func formatCompletionSummaryLine(c *event.CompletionSummaryInfo) string {
 	return line
 }
 
-func completionSummaryNeedsAttention(c *event.CompletionSummaryInfo, floor string) bool {
+func completionSummaryNeedsAttention(c *event.CompletionSummaryInfo, _ string) bool {
 	if c == nil {
 		return false
 	}
 	if strings.TrimSpace(c.Floor) != "" {
 		return c.Attention
 	}
-	return turncomp.NeedsAttention(turncomp.AttentionInput{
-		Verdict:            c.Verdict,
-		ChecksFailed:       c.ChecksFailed,
-		GapKinds:           c.GapKinds,
-		Floor:              floor,
-		RequiredSuppressed: c.ChecksSuppressed > 0,
-	})
-}
-
-func (m chatTUI) ctrlQualityFloor() string {
-	if m.ctrl == nil {
-		return ""
+	if strings.EqualFold(strings.TrimSpace(c.Verdict), "blocked") || c.ChecksFailed > 0 || c.ChecksSuppressed > 0 {
+		return true
 	}
-	return m.ctrl.QualityFloor()
+	for _, gap := range c.GapKinds {
+		switch strings.ToLower(strings.TrimSpace(gap)) {
+		case "unbacked_claim", "failed_verification":
+			return true
+		}
+	}
+	return false
 }
 
 func completionSummaryWarning(c *event.CompletionSummaryInfo) string {

@@ -44,7 +44,7 @@ import { observeComposerMenuViewport } from "../lib/composerMenuViewport";
 import { resolveComposerContentSizing } from "../lib/composerSizing";
 import { useToast } from "../lib/toast";
 import { readStatusLabel, turnPhaseStatusLabel } from "../lib/readStatus";
-import { type CollaborationMode, type CommandInfo, type ComposerInsertRequest, type ContextInfo, type DirEntry, type EffortInfo, type GoalRuntime, type HistoryMessage, type Mode, type PromptHistoryEntry, type QualityFloor, type SessionMeta, type SessionReference, type SlashArgItem, type SlashArgsResult, type ToolApprovalMode, type BalanceInfo, type WireReadStatus } from "../lib/types";
+import { type CollaborationMode, type CommandInfo, type ComposerInsertRequest, type ContextInfo, type DirEntry, type EffortInfo, type GoalRuntime, type HistoryMessage, type Mode, type PromptHistoryEntry, type SessionMeta, type SessionReference, type SlashArgItem, type SlashArgsResult, type ToolApprovalMode, type BalanceInfo, type WireReadStatus } from "../lib/types";
 import { ComposerPinnedFilesShelf } from "./ComposerPinnedFilesShelf";
 import {
   formatWorkspaceReference,
@@ -542,8 +542,6 @@ export function Composer({
   running,
   collaborationMode,
   toolApprovalMode,
-  qualityFloor,
-  floorInferred,
   turnPhase,
   readStatuses,
   goal,
@@ -565,7 +563,6 @@ export function Composer({
   onSetMode,
   onSetCollaborationMode,
   onSetToolApprovalMode,
-  onSetQualityFloor,
   onToggleYoloApprovalMode,
   onClearGoal,
   onPauseGoal,
@@ -625,8 +622,6 @@ export function Composer({
   running: boolean;
   collaborationMode: CollaborationMode;
   toolApprovalMode: ToolApprovalMode;
-  qualityFloor?: QualityFloor;
-  floorInferred?: boolean;
   /** Host turn phase: working | checking | verifying | reviewing */
   turnPhase?: string;
   /** Live read progress keyed by read id; rendered as one status line. */
@@ -656,7 +651,6 @@ export function Composer({
   onSetMode: (mode: Mode) => void;
   onSetCollaborationMode: (mode: CollaborationMode) => void;
   onSetToolApprovalMode: (mode: ToolApprovalMode) => void;
-  onSetQualityFloor?: (floor: QualityFloor) => void;
   onToggleYoloApprovalMode: () => void;
   onClearGoal: () => void;
   onPauseGoal: () => void;
@@ -3705,10 +3699,6 @@ export function Composer({
       requestActiveDraftFrame(focusComposerInput);
     });
   };
-  const chooseQualityFloor = (floor: QualityFloor) => {
-    if (floor === qualityFloor) return;
-    onSetQualityFloor?.(floor);
-  };
   const stopGoalMode = () => {
     setContentMenuOpen(false);
     closeIntentMenu(() => {
@@ -4068,18 +4058,6 @@ export function Composer({
               </button>
             </div>
           )}
-        </div>
-        <div className="composer-access-menu__section" role="menu" aria-label={t("composer.qualityFloor")} data-inferred={floorInferred || undefined}>
-          <div className="composer-access-menu__label">{t("composer.qualityFloor")}</div>
-            <button type="button" role="menuitemcheckbox"
-              aria-checked={qualityFloor === "delivery"}
-              className={`composer-access-menu__item${qualityFloor === "delivery" ? " composer-access-menu__item--active" : ""}`}
-              disabled={approvalBarDisabled || !onSetQualityFloor}
-              onClick={() => { chooseQualityFloor(qualityFloor === "delivery" ? "standard" : "delivery"); setContentMenuOpen(false); closeIntentMenu(); }}>
-              <ShieldCheck size={18} aria-hidden="true" />
-              <span className="composer-access-menu__copy"><span className="composer-access-menu__title">{t("composer.qualityFloorDelivery")}</span></span>
-              {qualityFloor === "delivery" && <Check size={14} aria-hidden="true" />}
-            </button>
         </div>
       </AnchoredPopover>}
       {menuMode === "slash" && (
@@ -4620,20 +4598,6 @@ export function Composer({
                   >
                     <span className="composer-task-mode-trigger__icon"><TaskModeIcon size={16} aria-hidden="true" /><X className="composer-task-mode-trigger__remove" size={14} aria-hidden="true" /></span>
                     <span className="composer-task-mode-trigger__value">{t(taskModeShortKey)}</span>
-                  </button>
-                </Tooltip>
-              </div>
-            )}
-            {!heroMode && qualityFloor === "delivery" && (
-              <div className="composer-meta__control composer-meta__control--delivery">
-                <Tooltip label={`${t("common.close")} ${t("composer.qualityFloorDelivery")}`}>
-                  <button type="button"
-                    className="composer-task-mode-trigger composer-task-mode-trigger--removable composer-delivery-trigger"
-                    aria-label={`${t("common.close")} ${t("composer.qualityFloorDelivery")}`}
-                    disabled={approvalBarDisabled || !onSetQualityFloor}
-                    onClick={() => { chooseQualityFloor("standard"); requestActiveDraftFrame(focusComposerInput); }}>
-                    <span className="composer-task-mode-trigger__icon"><ShieldCheck size={16} aria-hidden="true" /><X className="composer-task-mode-trigger__remove" size={14} aria-hidden="true" /></span>
-                    <span className="composer-task-mode-trigger__value">{t("composer.qualityFloorDelivery")}</span>
                   </button>
                 </Tooltip>
               </div>
