@@ -96,9 +96,12 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: false
+          # Windows keeps setup-go's go.sum-keyed cache: restoring the per-run
+          # cache there measured slower (17m -> 21m, then a 25-minute step
+          # timeout), so the rolling cache serves only the Unix legs.
+          cache: ${{ runner.os == 'Windows' }}
 
-      - if: env.RUN_STEPS == 'true'
+      - if: env.RUN_STEPS == 'true' && runner.os != 'Windows'
         uses: ./.github/actions/go-build-cache
         id: gocache
         with:
@@ -232,7 +235,7 @@ jobs:
       # Only main-v2 pushes save, one job per OS and module, so the cache
       # stays a few pushes deep instead of churning on every pull request.
       - uses: actions/cache/save@v4
-        if: always() && env.RUN_STEPS == 'true' && github.event_name == 'push' && steps.gocache.outputs.key != ''
+        if: always() && env.RUN_STEPS == 'true' && runner.os != 'Windows' && github.event_name == 'push' && steps.gocache.outputs.key != ''
         with:
           path: ${{ steps.gocache.outputs.paths }}
           key: ${{ steps.gocache.outputs.key }}
@@ -251,13 +254,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: false
-
-      - if: env.RUN_STEPS == 'true'
-        uses: ./.github/actions/go-build-cache
-        id: gocache
-        with:
-          module: root
+          cache: true
 
       - if: env.RUN_STEPS == 'true'
         uses: actions/setup-node@v7
@@ -304,12 +301,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: false
-
-      - uses: ./.github/actions/go-build-cache
-        id: gocache
-        with:
-          module: root
+          cache: true
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
@@ -884,12 +876,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
-          cache: false
-
-      - uses: ./.github/actions/go-build-cache
-        id: gocache
-        with:
-          module: desktop
+          cache: true
+          cache-dependency-path: desktop/go.sum
 
       - uses: pnpm/action-setup@v6.1.0
         with:
@@ -994,12 +982,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
-          cache: false
-
-      - uses: ./.github/actions/go-build-cache
-        id: gocache
-        with:
-          module: desktop
+          cache: true
+          cache-dependency-path: desktop/go.sum
 
       - uses: pnpm/action-setup@v6.1.0
         with:
@@ -1045,14 +1029,6 @@ jobs:
         timeout-minutes: 2
         run: go test -timeout=60s fyne.io/systray
 
-      # Only main-v2 pushes save, one job per OS and module, so the cache
-      # stays a few pushes deep instead of churning on every pull request.
-      - uses: actions/cache/save@v4
-        if: always() && github.event_name == 'push' && steps.gocache.outputs.key != ''
-        with:
-          path: ${{ steps.gocache.outputs.paths }}
-          key: ${{ steps.gocache.outputs.key }}
-
   # Installer packaging is packaging validation, not a code gate, and it shares
   # no state with the test steps above. It runs beside them instead of after
   # them so the Windows leg's wall time is the longer half rather than the sum,
@@ -1075,12 +1051,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: desktop/go.mod
-          cache: false
-
-      - uses: ./.github/actions/go-build-cache
-        id: gocache
-        with:
-          module: desktop
+          cache: true
+          cache-dependency-path: desktop/go.sum
 
       - uses: pnpm/action-setup@v6.1.0
         with:
@@ -1150,6 +1122,38 @@ jobs:
           path: |
             desktop/electron/artifacts/performance/overhead.json
             desktop/electron/artifacts/performance/diagnostic-report.png
+
+  # Every main-v2 push saves one Go cache per Unix OS and module (~2.6 GiB
+  # measured) against a 10 GiB repository limit shared with pnpm, CodeQL and
+  # setup-go caches; two pushes filled it. Keep only the newest cache per
+  # prefix once the savers are done; restore-keys pick the newest anyway.
+  prune-go-cache:
+    needs: [test, race, desktop-go, desktop-go-race, desktop-macos]
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Keep the newest Go cache per OS and module
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          declare -A seen
+          while read -r id key; do
+            [ -n "$id" ] || continue
+            prefix="${key%-*-*-*}"
+            if [ -n "${seen[$prefix]:-}" ]; then
+              echo "deleting older cache $key"
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/caches/$id" >/dev/null
+            else
+              seen[$prefix]=1
+              echo "keeping newest cache $key"
+            fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100&sort=created_at&direction=desc" --paginate \
+            --jq '.actions_caches[] | select(.key | startswith("go-")) | "\(.id) \(.key)"')
 
   # repolint scans desktop/ and sdk/ too, so this job also runs for diffs the
   # `code` filter would otherwise skip.
