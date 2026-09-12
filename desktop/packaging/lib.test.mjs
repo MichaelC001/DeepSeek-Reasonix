@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -21,6 +21,7 @@ import {
   shellIgnore,
   signingFileList,
   versionTag,
+  validateMacServiceLink,
   WINDOWS_FLAT_PAYLOAD,
 } from "./lib.mjs";
 
@@ -157,6 +158,7 @@ test("required members cover every artifact and the checks report gaps", () => {
   assert.deepEqual(checkMembers([...macEntries, "Reasonix.app/", "Reasonix.app/Contents/"], "darwin-zip"), { missing: [], forbidden: [] });
   assert.deepEqual(checkMembers(macEntries.slice(1), "darwin-zip").missing, [macEntries[0]]);
   assert.deepEqual(checkMembers([...macEntries, "Reasonix.app/Contents/MacOS/reasonix-guard"], "darwin-zip").forbidden, ["Reasonix.app/Contents/MacOS/reasonix-guard"]);
+  assert.deepEqual(checkMembers([...macEntries, "Reasonix.app/Contents/Resources/main.cjs.map"], "darwin-zip").forbidden, [String(/(^|\/)(?:[^/]+\.map|__tests__|testdata|\.cache|coverage|npm-debug\.log|pnpm-debug\.log|yarn-error\.log)(?:$|\/)/)]);
   assert.ok(macEntries.includes("Reasonix.app/Contents/MacOS/reasonix-desktop"));
   assert.ok(macEntries.includes("Reasonix.app/Contents/Resources/service/reasonix"));
   assert.ok(macEntries.includes("Reasonix.app/Contents/Resources/service/reasonix-desktop"));
@@ -165,7 +167,7 @@ test("required members cover every artifact and the checks report gaps", () => {
   const portable = [
     "Reasonix.exe", "reasonix-launcher.exe", "reasonix-cli.exe", "current.json",
     "versions/v1.2.3-rc.1/reasonix-desktop.exe", "versions/v1.2.3-rc.1/reasonix-update-helper.exe", "versions/v1.2.3-rc.1/reasonix-cli.exe",
-    "versions/v1.2.3-rc.1/app/Reasonix.exe", "versions/v1.2.3-rc.1/app/resources/app.asar", "versions/v1.2.3-rc.1/app/resources/app/index.html", "versions/v1.2.3-rc.1/app/resources/build.json",
+    "versions/v1.2.3-rc.1/app/Reasonix.exe", "versions/v1.2.3-rc.1/app/resources/bin/reasonix-cli-launcher.exe", "versions/v1.2.3-rc.1/app/resources/app.asar", "versions/v1.2.3-rc.1/app/resources/app/index.html", "versions/v1.2.3-rc.1/app/resources/build.json",
   ];
   assert.deepEqual(checkMembers(portable, "windows-portable-zip"), { missing: [], forbidden: [] });
   assert.deepEqual(checkMembers(portable.filter((name) => !name.endsWith("app/Reasonix.exe")), "windows-portable-zip").missing, [String(/^versions\/v[^/]+\/app\/Reasonix\.exe$/)]);
@@ -182,6 +184,23 @@ test("required members cover every artifact and the checks report gaps", () => {
   assert.deepEqual(checkMembers([...deb, "./usr/bin/reasonix-guard"], "linux-deb").forbidden, ["usr/bin/reasonix-guard"]);
   assert.deepEqual(checkMembers(requiredMembers("linux-app-dir").map(String), "linux-app-dir").missing, []);
   assert.throws(() => checkMembers([], "nope"), /unknown artifact kind/);
+});
+
+test("macOS service compatibility link stays relative, internal and live", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "reasonix-link-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const app = join(root, "Reasonix.app");
+  const macOS = join(app, "Contents", "MacOS");
+  const service = join(app, "Contents", "Resources", "service");
+  mkdirSync(macOS, { recursive: true });
+  mkdirSync(service, { recursive: true });
+  writeFileSync(join(service, "reasonix-desktop"), "service");
+  symlinkSync("../Resources/service/reasonix-desktop", join(macOS, "reasonix-desktop"));
+  assert.deepEqual(validateMacServiceLink(app), []);
+
+  rmSync(join(macOS, "reasonix-desktop"));
+  symlinkSync("../../../../outside", join(macOS, "reasonix-desktop"));
+  assert.match(validateMacServiceLink(app).join("\n"), /does not resolve|dangling/);
 });
 
 test("artifact kinds are inferred from release names and bundle shapes", () => {

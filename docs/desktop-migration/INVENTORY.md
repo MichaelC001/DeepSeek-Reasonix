@@ -15,8 +15,8 @@ Every entry carries one class: `keep-business` keeps its Go implementation and c
 | persistence | 11 | 0 | 0 | 11 |
 | shell-file | 1 | 39 | 4 | 44 |
 | artifact | 5 | 0 | 0 | 5 |
-| ci-job | 23 | 0 | 0 | 23 |
-| **all** | | | | **710** |
+| ci-job | 24 | 0 | 0 | 24 |
+| **all** | | | | **711** |
 
 ## Desktop commands (Go `App` methods bound to the UI)
 
@@ -683,7 +683,7 @@ Every entry carries one class: `keep-business` keeps its Go implementation and c
 | `desktop-window.json` |  | desktop/window_state.go:46 | keep-business (保留业务实现) | format unchanged; read by both shells |
 | `desktop-workspaces.json` |  | desktop/workspace.go:35 | keep-business (保留业务实现) | format unchanged; read by both shells |
 | `desktop-zoom.json` |  | desktop/zoom_factor.go:20 | keep-business (保留业务实现) | format unchanged; read by both shells |
-| `downloaded.json` |  | desktop/updater.go:556 | keep-business (保留业务实现) | format unchanged; read by both shells |
+| `downloaded.json` |  | desktop/updater.go:541 | keep-business (保留业务实现) | format unchanged; read by both shells |
 | `heartbeat-tasks.json` |  | desktop/heartbeat.go:160 | keep-business (保留业务实现) | format unchanged; read by both shells |
 | `heartbeat-tasks.runs.json` |  | desktop/heartbeat_sidecar.go:34 | keep-business (保留业务实现) | format unchanged; read by both shells |
 | `mcp-registry-v0.1.json` |  | desktop/app.go:7099 | keep-business (保留业务实现) | format unchanged; read by both shells |
@@ -744,7 +744,7 @@ Every entry carries one class: `keep-business` keeps its Go implementation and c
 
 | Name | Detail | Location | Class | New owner |
 | --- | --- | --- | --- | --- |
-| `Reasonix-darwin-<arch>.zip` | ditto archive; updater channel | scripts/desktop-build.sh:9 | keep-business (保留业务实现) | same file name and installer identity; Electron payload inside |
+| `Reasonix-darwin-<arch>.dmg` | drag-to-install; human download | scripts/desktop-build.sh:10 | keep-business (保留业务实现) | same file name and installer identity; Electron payload inside |
 | `Reasonix-linux-<arch>.deb` | Debian/Ubuntu package; native updater | scripts/desktop-build.sh:14 | keep-business (保留业务实现) | same file name and installer identity; Electron payload inside |
 | `Reasonix-linux-<arch>.tar.gz` | desktop + guard + CLI + app/ tree; portable updater | scripts/desktop-build.sh:13 | keep-business (保留业务实现) | same file name and installer identity; Electron payload inside |
 | `Reasonix-windows-<arch>-installer.exe` | NSIS per-user installer; updater channel | scripts/desktop-build.sh:11 | keep-business (保留业务实现) | same file name and installer identity; Electron payload inside |
@@ -771,6 +771,7 @@ Every entry carries one class: `keep-business` keeps its Go implementation and c
 | `release-desktop.yml/attest-signing-contract` |  | .github/workflows/release-desktop.yml | keep-business (保留业务实现) | attests the extended payload list |
 | `release-desktop.yml/build` |  | .github/workflows/release-desktop.yml | keep-business (保留业务实现) | desktop-build.sh packages the Electron app with the same NSIS/nfpm/signing steps |
 | `release-desktop.yml/cache-guard` |  | .github/workflows/release-desktop.yml | keep-business (保留业务实现) | unchanged |
+| `release-desktop.yml/mac-universal-intel` |  | .github/workflows/release-desktop.yml | keep-business (保留业务实现) | validates the exact universal DMG from the build matrix on an Intel runner |
 | `release-desktop.yml/mirror` |  | .github/workflows/release-desktop.yml | keep-business (保留业务实现) | unchanged |
 | `release-desktop.yml/orchestration-guard` |  | .github/workflows/release-desktop.yml | keep-business (保留业务实现) | unchanged |
 | `release-desktop.yml/publish` |  | .github/workflows/release-desktop.yml | keep-business (保留业务实现) | manifest, minisign and mirror unchanged |

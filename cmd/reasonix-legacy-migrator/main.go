@@ -297,9 +297,18 @@ func activateInstallerStagingWithRecovery(installRoot, activeVersion, stagingRoo
 
 	launcherName := installlayout.LauncherBinaryName()
 	launcherSource := filepath.Join(stagingRoot, launcherName)
+	cliEntrySource := filepath.Join(stagingRoot, "app", "resources", "bin", "reasonix-cli-launcher.exe")
+	if info, entryErr := os.Lstat(cliEntrySource); entryErr != nil {
+		if !os.IsNotExist(entryErr) {
+			return fmt.Errorf("inspect CLI entry: %w", entryErr)
+		}
+		cliEntrySource = filepath.Join(stagingRoot, cliName)
+	} else if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("CLI entry is not a regular file")
+	}
 	rootMembers := []installlayout.Member{
 		{Name: launcherName, Path: launcherSource},
-		{Name: cliName, Path: filepath.Join(stagingRoot, cliName)},
+		{Name: cliName, Path: cliEntrySource},
 	}
 	requiredRootNames := []string{launcherName, cliName}
 	if alias := installlayout.PortableAliasName(); alias != "" {

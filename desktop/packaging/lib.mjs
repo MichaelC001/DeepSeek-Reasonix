@@ -1,5 +1,5 @@
-import { closeSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { closeSync, fstatSync, lstatSync, openSync, readdirSync, readFileSync, readlinkSync, readSync, realpathSync, statSync } from "node:fs";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 // These package scripts are Node entry points. Starting Node directly keeps
@@ -205,6 +205,7 @@ function darwinBundleMembers() {
 }
 
 const VERSION_DIR = "versions/v[^/]+";
+const PACKAGING_JUNK = /(^|\/)(?:[^/]+\.map|__tests__|testdata|\.cache|coverage|npm-debug\.log|pnpm-debug\.log|yarn-error\.log)(?:$|\/)/;
 
 const MEMBERS = {
   "darwin-app-dir": { required: darwinBundleMembers(), forbidden: ["Contents/MacOS/reasonix-guard"] },
@@ -226,6 +227,7 @@ const MEMBERS = {
       new RegExp(`^${VERSION_DIR}/reasonix-update-helper\\.exe$`),
       new RegExp(`^${VERSION_DIR}/reasonix-cli\\.exe$`),
       new RegExp(`^${VERSION_DIR}/app/${PRODUCT.executable}\\.exe$`),
+      new RegExp(`^${VERSION_DIR}/app/resources/bin/reasonix-cli-launcher\\.exe$`),
       new RegExp(`^${VERSION_DIR}/app/resources/app\\.asar$`),
       new RegExp(`^${VERSION_DIR}/app/resources/app/index\\.html$`),
       new RegExp(`^${VERSION_DIR}/app/resources/build\\.json$`),
@@ -271,8 +273,38 @@ export function checkMembers(entries, kind) {
   const matches = (rule) => (rule instanceof RegExp ? [...names].some((name) => rule.test(name)) : names.has(rule));
   return {
     missing: spec.required.filter((rule) => !matches(rule)).map(String),
-    forbidden: spec.forbidden.filter((rule) => matches(rule)).map(String),
+    forbidden: [...spec.forbidden, PACKAGING_JUNK].filter((rule) => matches(rule)).map(String),
   };
+}
+
+export function validateMacServiceLink(appDir) {
+  const link = join(appDir, "Contents", "MacOS", PRODUCT.serviceExecutable);
+  const expectedTarget = `../Resources/service/${PRODUCT.serviceExecutable}`;
+  const errors = [];
+  let stat;
+  try {
+    stat = lstatSync(link);
+  } catch (error) {
+    return [`service compatibility link is unavailable: ${error.message}`];
+  }
+  if (!stat.isSymbolicLink()) return ["service compatibility path is not a symbolic link"];
+  const target = readlinkSync(link);
+  if (target !== expectedTarget) errors.push(`service compatibility link target is ${JSON.stringify(target)}, want ${JSON.stringify(expectedTarget)}`);
+  if (resolve(dirname(link), target) !== resolve(appDir, "Contents", "Resources", "service", PRODUCT.serviceExecutable)) {
+    errors.push("service compatibility link does not resolve to the package service entity");
+  }
+  try {
+    const realApp = realpathSync(appDir);
+    const realTarget = realpathSync(link);
+    const rel = relative(realApp, realTarget);
+    if (rel === "" || rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) {
+      errors.push("service compatibility link resolves outside the application bundle");
+    }
+    if (!statSync(realTarget).isFile()) errors.push("service compatibility link target is not a regular file");
+  } catch (error) {
+    errors.push(`service compatibility link is dangling or cyclic: ${error.message}`);
+  }
+  return errors;
 }
 
 export function inferArtifactKind(pathname, isDirectory, entries = []) {

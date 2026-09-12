@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { ARTIFACT_KINDS, checkMembers, inferArtifactKind, isDirectory, listZipEntries, walkFiles } from "./lib.mjs";
+import { ARTIFACT_KINDS, checkMembers, inferArtifactKind, isDirectory, listZipEntries, validateMacServiceLink, walkFiles } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const artifactArg = args.find((arg) => !arg.startsWith("--"));
@@ -37,7 +37,9 @@ const kind = kindArg ?? inferArtifactKind(artifact, directory, directory ? readd
 const entries = entriesOf(artifact);
 if (args.includes("--list")) for (const entry of entries) console.log(entry);
 const { missing, forbidden } = checkMembers(entries, kind);
+const layoutErrors = kind === "darwin-app-dir" ? validateMacServiceLink(artifact) : [];
 for (const name of missing) console.error(`verify: ${kind} is missing ${name}`);
 for (const name of forbidden) console.error(`verify: ${kind} must not contain ${name}`);
-if (missing.length > 0 || forbidden.length > 0) process.exit(1);
+for (const error of layoutErrors) console.error(`verify: ${kind} ${error}`);
+if (missing.length > 0 || forbidden.length > 0 || layoutErrors.length > 0) process.exit(1);
 console.log(`verify: ${kind} ok (${entries.length} entries in ${artifact})`);

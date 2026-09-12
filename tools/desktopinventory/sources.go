@@ -32,6 +32,7 @@ var ciJobs = map[string]struct {
 	"release-desktop.yml/signing-contract":        {classKeepBusiness, "payload list covers the Electron executables and native modules"},
 	"release-desktop.yml/cache-guard":             {classKeepBusiness, "unchanged"},
 	"release-desktop.yml/build":                   {classKeepBusiness, "desktop-build.sh packages the Electron app with the same NSIS/nfpm/signing steps"},
+	"release-desktop.yml/mac-universal-intel":     {classKeepBusiness, "validates the exact universal DMG from the build matrix on an Intel runner"},
 	"release-desktop.yml/publish":                 {classKeepBusiness, "manifest, minisign and mirror unchanged"},
 	"release-desktop.yml/attest-signing-contract": {classKeepBusiness, "attests the extended payload list"},
 	"release-desktop.yml/mirror":                  {classKeepBusiness, "unchanged"},

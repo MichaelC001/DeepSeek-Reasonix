@@ -55,11 +55,11 @@ test("required desktop aggregate rejects every failed, cancelled or unexpectedly
 test("reuse skips only build work and still gates every publisher on validation", () => {
   const context = {
     inputs: { preflight_artifact_prefix: "desktop-123-1-preflight", orchestrated: true, signing_preflight_verified: true, signing_preflight: false, production_signing_smoke: false },
-    needs: { resolve: { result: "success" }, "cache-guard": { result: "success" }, "signing-contract": { result: "success" }, build: { result: "skipped" } },
+    needs: { resolve: { result: "success" }, "cache-guard": { result: "success" }, "signing-contract": { result: "success" }, "mac-universal-intel": { result: "skipped" }, build: { result: "skipped" } },
   };
   assert.equal(condition(job(release, "build"), context), false);
   assert.equal(condition(job(release, "publish"), context), true);
-  for (const key of ["resolve", "cache-guard", "signing-contract", "build"]) {
+  for (const key of ["resolve", "cache-guard", "signing-contract", "mac-universal-intel", "build"]) {
     for (const result of ["failure", "cancelled"]) {
       const changed = structuredClone(context);
       changed.needs[key].result = result;
@@ -77,6 +77,7 @@ test("reuse skips only build work and still gates every publisher on validation"
   assert.equal(condition(job(release, "build"), fresh), true);
   assert.equal(condition(job(release, "publish"), fresh), false);
   fresh.needs.build.result = "success";
+  fresh.needs["mac-universal-intel"].result = "success";
   assert.equal(condition(job(release, "publish"), fresh), true);
 });
 

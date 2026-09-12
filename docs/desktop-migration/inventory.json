@@ -5013,7 +5013,7 @@
     {
       "kind": "persistence",
       "name": "downloaded.json",
-      "location": "desktop/updater.go:556",
+      "location": "desktop/updater.go:541",
       "class": "keep-business",
       "owner": "format unchanged; read by both shells"
     },
@@ -5325,9 +5325,9 @@
     },
     {
       "kind": "artifact",
-      "name": "Reasonix-darwin-\u003carch\u003e.zip",
-      "detail": "ditto archive; updater channel",
-      "location": "scripts/desktop-build.sh:9",
+      "name": "Reasonix-darwin-\u003carch\u003e.dmg",
+      "detail": "drag-to-install; human download",
+      "location": "scripts/desktop-build.sh:10",
       "class": "keep-business",
       "owner": "same file name and installer identity; Electron payload inside"
     },
@@ -5481,6 +5481,13 @@
       "location": ".github/workflows/release-desktop.yml",
       "class": "keep-business",
       "owner": "unchanged"
+    },
+    {
+      "kind": "ci-job",
+      "name": "release-desktop.yml/mac-universal-intel",
+      "location": ".github/workflows/release-desktop.yml",
+      "class": "keep-business",
+      "owner": "validates the exact universal DMG from the build matrix on an Intel runner"
     },
     {
       "kind": "ci-job",

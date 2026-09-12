@@ -7,7 +7,7 @@
 // usage: node desktop/packaging/package.mjs <os/arch> <version> [channel]
 import { defaultSanitizePackageJson, packager } from "@electron/packager";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,13 +68,27 @@ if (!existsSync(join(shellDist, "desktopContract.json")) && process.env.REASONIX
   throw new Error(`desktop contract is missing from ${shellDist}; run: cd desktop && go run . -emit-contract frontend/src/generated`);
 }
 
+const sourceMapDir = join(desktop, "build", "sourcemaps", target.key);
+rmSync(sourceMapDir, { recursive: true, force: true });
+mkdirSync(sourceMapDir, { recursive: true });
+for (const name of readdirSync(shellDist).filter((name) => name.endsWith(".map"))) {
+  cpSync(join(shellDist, name), join(sourceMapDir, name));
+}
+for (const name of walkFiles(frontendDist).filter((name) => name.endsWith(".map"))) {
+  const destination = join(sourceMapDir, "frontend", name);
+  mkdirSync(dirname(destination), { recursive: true });
+  cpSync(join(frontendDist, name), destination);
+}
+
 const staging = mkdtempSync(join(tmpdir(), "reasonix-package-"));
 const outDir = join(desktop, "build", "electron", target.key);
 try {
-  cpSync(frontendDist, join(staging, "app"), { recursive: true });
+  cpSync(frontendDist, join(staging, "app"), {
+    recursive: true,
+    filter: (source) => !source.endsWith(".map"),
+  });
   mkdirSync(join(staging, "icons"), { recursive: true });
   cpSync(join(desktop, "build", "appicon.png"), join(staging, "icons", "appicon.png"));
-  cpSync(join(desktop, "build", "linux", "icons"), join(staging, "icons", "linux", "icons"), { recursive: true });
   // Packaged launches always read this identity, including the full version
   // tag. Environment overrides belong only to the unpackaged development shell.
   writeFileSync(join(staging, "build.json"), JSON.stringify(buildInfo({ version, channel, commit, electronVersion, target, buildTime }), null, 2) + "\n");

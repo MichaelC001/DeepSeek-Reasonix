@@ -151,6 +151,49 @@ func TestActivateInstallerStagingPublishesVersionAndRootEntries(t *testing.T) {
 	}
 }
 
+func TestActivateInstallerStagingPrefersThinCLIEntryAndRejectsInvalidEntry(t *testing.T) {
+	root := t.TempDir()
+	staging := writeInstallerStaging(t, root, "new", true)
+	entry := filepath.Join(staging, "app", "resources", "bin", "reasonix-cli-launcher.exe")
+	if err := os.MkdirAll(filepath.Dir(entry), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte("thin-entry"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := activateInstallerStaging(root, "v1.39.0", staging); err != nil {
+		t.Fatal(err)
+	}
+	rootCLI, err := os.ReadFile(filepath.Join(root, installlayout.CLIBinaryName()))
+	if err != nil || string(rootCLI) != "thin-entry" {
+		t.Fatalf("root CLI=%q err=%v, want thin entry", rootCLI, err)
+	}
+	activeCLI, err := installlayout.ActiveCLIPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullCLI, err := os.ReadFile(activeCLI)
+	if err != nil || string(fullCLI) != "new-"+installlayout.CLIBinaryName() {
+		t.Fatalf("active CLI=%q err=%v, want full CLI", fullCLI, err)
+	}
+
+	badRoot := t.TempDir()
+	badStaging := writeInstallerStaging(t, badRoot, "bad", true)
+	badEntry := filepath.Join(badStaging, "app", "resources", "bin", "reasonix-cli-launcher.exe")
+	if err := os.MkdirAll(filepath.Dir(badEntry), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(badStaging, installlayout.CLIBinaryName()), badEntry); err != nil {
+		t.Fatal(err)
+	}
+	if err := activateInstallerStaging(badRoot, "v1.39.0", badStaging); err == nil {
+		t.Fatal("installer accepted a symlink CLI entry")
+	}
+	if installlayout.HasCurrent(badRoot) {
+		t.Fatal("invalid CLI entry committed current.json")
+	}
+}
+
 func TestActivateInstallerStagingFailureKeepsPreviousPointer(t *testing.T) {
 	root := t.TempDir()
 	oldStaging := writeInstallerStaging(t, root, "old", true)

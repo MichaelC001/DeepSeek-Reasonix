@@ -1066,6 +1066,8 @@ write_desktop_manifest() {
 				"linux-amd64": asset("Reasonix-linux-amd64.deb")
 			},
 			downloads: {
+				"Reasonix-darwin-arm64.dmg": asset("Reasonix-darwin-arm64.dmg"),
+				"Reasonix-darwin-amd64.dmg": asset("Reasonix-darwin-amd64.dmg"),
 				"Reasonix-darwin-universal.dmg": asset("Reasonix-darwin-universal.dmg"),
 				"Reasonix-windows-amd64.zip": asset("Reasonix-windows-amd64.zip")
 			}

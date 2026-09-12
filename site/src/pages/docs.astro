@@ -130,9 +130,13 @@ brew install esengine/reasonix/reasonix</div>
           </a>
         </div>
         <div class="desktop-downloads desktop-downloads--secondary" aria-label="Alternate desktop downloads">
-          <a class="desktop-download" href={`${desktopStableFallback}/Reasonix-darwin-arm64.zip`} data-desktop-asset="Reasonix-darwin-arm64.zip" download>
+          <a class="desktop-download" href={`${desktopStableFallback}/Reasonix-darwin-arm64.dmg`} data-desktop-asset="Reasonix-darwin-arm64.dmg" download>
             <strong>macOS</strong>
-            <span>Apple Silicon zip</span>
+            <span>Apple Silicon DMG</span>
+          </a>
+          <a class="desktop-download" href={`${desktopStableFallback}/Reasonix-darwin-amd64.dmg`} data-desktop-asset="Reasonix-darwin-amd64.dmg" download>
+            <strong>macOS</strong>
+            <span>Intel DMG</span>
           </a>
           <a class="desktop-download" href={`${desktopStableFallback}/Reasonix-windows-arm64-installer.exe`} data-desktop-asset="Reasonix-windows-arm64-installer.exe" download>
             <strong>Windows</strong>
@@ -149,6 +153,7 @@ brew install esengine/reasonix/reasonix</div>
           <li><span class="l-en">Connect Feishu, Lark, or WeChat bots from Settings and handle remote approvals locally.</span><span class="l-zh">在设置中连接飞书、Lark 或微信 Bot,并在本地处理远程审批。</span></li>
         </ul>
       </div>
+      <div class="callout"><span class="ico">!</span><span><span class="l-en"><strong>Recovery from desktop 1.38.7:</strong> if update reports <code>current executable is not inside a macOS .app bundle</code>, quit Reasonix, download the Apple Silicon, Intel, or Universal DMG above, and replace <code>/Applications/Reasonix.app</code>. This one-time full reinstall keeps Reasonix settings and sessions. Automatic updates resume from the repaired version.</span><span class="l-zh"><strong>桌面端 1.38.7 恢复：</strong>若更新提示 <code>current executable is not inside a macOS .app bundle</code>，请退出 Reasonix，下载上方 Apple Silicon、Intel 或 Universal DMG，并覆盖 <code>/Applications/Reasonix.app</code>。这次完整覆盖安装不会删除 Reasonix 的配置和会话；安装修复版后，后续版本可继续自动更新。</span></span></div>
       <h3 id="macos-quarantine"><span class="l-en">macOS quarantine warning</span><span class="l-zh">macOS 隔离属性提示</span></h3>
       <p><span class="l-en">Use this only when Reasonix was downloaded from the official site or GitHub release, moved to <code>/Applications</code>, and macOS still says the app cannot be opened, cannot be verified, or is damaged. This removes the quarantine flag that macOS attaches to downloaded apps.</span><span class="l-zh">仅在 Reasonix 来自官网或 GitHub Release、已经放入 <code>/Applications</code>,但 macOS 仍提示“无法打开”“无法验证开发者”或“应用已损坏”时使用。它会移除 macOS 给下载应用附加的隔离属性。</span></p>
       <div class="codeblock codeblock--copy"><button data-copy="sudo xattr -rd com.apple.quarantine /Applications/Reasonix.app">Copy</button><span class="c"># Quit Reasonix first, then run in Terminal.</span>

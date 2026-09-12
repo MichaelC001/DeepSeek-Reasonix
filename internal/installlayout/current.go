@@ -254,7 +254,13 @@ func DesktopBinaryName() string {
 // CLIBinaryName is the platform-specific CLI executable base name inside a
 // version directory.
 func CLIBinaryName() string {
-	if runtime.GOOS == "windows" {
+	return CLIBinaryNameFor(runtime.GOOS)
+}
+
+// CLIBinaryNameFor returns the CLI member name for an explicit target OS.
+// Packaging tools use it while building Windows payloads on other hosts.
+func CLIBinaryNameFor(goos string) string {
+	if goos == "windows" {
 		return "reasonix-cli.exe"
 	}
 	return "reasonix-cli"
@@ -288,12 +294,17 @@ func ActiveDesktopPath(installRoot string) (string, error) {
 
 // ActiveCLIPath resolves the active CLI executable from current.json.
 func ActiveCLIPath(installRoot string) (string, error) {
+	return ActiveCLIPathFor(installRoot, runtime.GOOS)
+}
+
+// ActiveCLIPathFor resolves a target OS CLI from a versioned install root.
+func ActiveCLIPathFor(installRoot, goos string) (string, error) {
 	ptr, err := ReadCurrent(installRoot)
 	if err != nil {
 		return "", err
 	}
 	dir := filepath.Join(installRoot, filepath.FromSlash(ptr.ActiveDir))
-	path := filepath.Join(dir, CLIBinaryName())
+	path := filepath.Join(dir, CLIBinaryNameFor(goos))
 	info, err := os.Lstat(path)
 	if err != nil {
 		return "", fmt.Errorf("installlayout: active CLI binary: %w", err)

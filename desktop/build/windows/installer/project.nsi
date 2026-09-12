@@ -1,5 +1,8 @@
 ﻿Unicode true
 
+SetCompressor /SOLID /FINAL lzma
+SetCompressorDictSize 32
+
 ####
 ## Reasonix per-user NSIS installer (Electron shell).
 ##
