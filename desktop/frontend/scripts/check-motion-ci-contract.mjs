@@ -23,11 +23,14 @@ function jobBody(name) {
 
 for (const [job, body, command] of [
   ["desktop-frontend", jobBody("desktop-frontend"), "node frontend/scripts/run-ci-tests.mjs"],
-  ["required lint", jobBody("lint", "site"), "pnpm --dir desktop/frontend test:motion"],
+  ["required lint", jobBody("lint"), "FRONTEND_RESULT: ${{ needs.desktop-frontend.result }}"],
 ]) {
   if (!body.includes(command)) {
     throw new Error(`motion-ci-contract: ${job} must run test:motion`);
   }
+}
+if (jobBody("lint-code").includes("test:motion") || jobBody("lint").includes("test:motion")) {
+  throw new Error("motion-ci-contract: test:motion must run only through the deduplicated frontend plan");
 }
 
 const windowsJob = jobBody("desktop-windows", "lint");
@@ -133,7 +136,7 @@ if (motionScript.includes("transcript-virtualization.test.tsx")) {
 
 const motionBrowserCommand = "pnpm --dir frontend test:motion-browser";
 const motionBrowserRuns = workflow.match(/pnpm --dir frontend test:motion-browser(?:\s|$)/g)?.length ?? 0;
-if (!jobBody("desktop-browser").includes(motionBrowserCommand) || motionBrowserRuns !== 1) {
+if (!jobBody("desktop-browser-group").includes(motionBrowserCommand) || motionBrowserRuns !== 1) {
   throw new Error("motion-ci-contract: the Linux browser job must run test:motion-browser exactly once");
 }
 if (!packageJSON.scripts?.["test:motion-browser"]?.includes("approval-animation.mjs")) {
@@ -192,7 +195,7 @@ if (/transition-duration/.test(globalReducedMotion[1])) {
 if (!ciUnitScripts.includes("test:motion") || !ciUnitScripts.includes("test:transcript")) {
   throw new Error("motion-ci-contract: Linux CI must include all dedicated motion and transcript suites");
 }
-const desktopLinuxJob = jobBody("desktop-browser");
+const desktopLinuxJob = jobBody("desktop-browser-group");
 
 const transcriptBrowserCommand = "pnpm --dir frontend test:transcript-browser";
 const transcriptBrowserRuns = desktopLinuxJob.match(/pnpm --dir frontend test:transcript-browser(?:\s|$)/g)?.length ?? 0;

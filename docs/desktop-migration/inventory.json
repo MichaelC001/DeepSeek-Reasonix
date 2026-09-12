@@ -5407,6 +5407,13 @@
     },
     {
       "kind": "ci-job",
+      "name": "ci.yml/desktop-browser-group",
+      "location": ".github/workflows/ci.yml",
+      "class": "keep-business",
+      "owner": "Playwright browser gates split into bounded groups"
+    },
+    {
+      "kind": "ci-job",
       "name": "ci.yml/desktop-frontend",
       "location": ".github/workflows/ci.yml",
       "class": "keep-business",

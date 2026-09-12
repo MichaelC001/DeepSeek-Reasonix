@@ -760,6 +760,7 @@ Every entry carries one class: `keep-business` keeps its Go implementation and c
 | `app-memory.yml/shard` |  | .github/workflows/app-memory.yml | keep-business (保留业务实现) | browser memory screening unchanged |
 | `ci.yml/desktop` |  | .github/workflows/ci.yml | keep-business (保留业务实现) | aggregate gate, unchanged |
 | `ci.yml/desktop-browser` |  | .github/workflows/ci.yml | keep-business (保留业务实现) | Playwright browser gates unchanged |
+| `ci.yml/desktop-browser-group` |  | .github/workflows/ci.yml | keep-business (保留业务实现) | Playwright browser gates split into bounded groups |
 | `ci.yml/desktop-frontend` |  | .github/workflows/ci.yml | keep-business (保留业务实现) | React gates unchanged |
 | `ci.yml/desktop-go` |  | .github/workflows/ci.yml | keep-business (保留业务实现) | hostrpc + module tests; no WebKitGTK toolchain |
 | `ci.yml/desktop-go-race` |  | .github/workflows/ci.yml | keep-business (保留业务实现) | desktop module race sweep, split from desktop-go |

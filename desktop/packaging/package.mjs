@@ -24,6 +24,7 @@ import {
   versionTag,
   walkFiles,
 } from "./lib.mjs";
+import { verifyFrontendArtifact } from "../frontend/scripts/artifact-identity.mjs";
 
 const desktop = dirname(dirname(fileURLToPath(import.meta.url)));
 const repo = dirname(desktop);
@@ -52,7 +53,20 @@ function require(path, what) {
 }
 
 const frontendDist = join(desktop, "frontend", "dist");
-if (process.env.REASONIX_PACKAGE_REUSE_FRONTEND === "1" && existsSync(join(frontendDist, "index.html"))) {
+if (process.env.REASONIX_PACKAGE_REUSE_FRONTEND === "1") {
+  const pnpmVersion = (process.env.REASONIX_FRONTEND_PNPM_VERSION ?? "").trim();
+  if (!pnpmVersion) throw new Error("REASONIX_FRONTEND_PNPM_VERSION is required when reusing a frontend artifact");
+  verifyFrontendArtifact({
+    root: repo,
+    dist: frontendDist,
+    manifest: process.env.REASONIX_FRONTEND_ARTIFACT_MANIFEST || join(desktop, "frontend", ".reasonix-frontend-artifact.json"),
+    shell: "electron",
+    channel,
+    sourceSHA: process.env.GITHUB_SHA || undefined,
+    runId: process.env.GITHUB_RUN_ID || undefined,
+    attempt: process.env.GITHUB_RUN_ATTEMPT || undefined,
+    pnpmVersion,
+  });
   console.log(`==> reusing ${frontendDist}`);
 } else {
   console.log(`==> frontend build:electron (channel ${channel})`);
