@@ -588,6 +588,7 @@ export function useAppSessionComposition(input: AppSessionCompositionInput) {
   });
 
   const workspacePanelCommands = useWorkspacePanelCommands({
+    sessionId: activeTabId ?? "",
     workspaceRoot: activeTab?.workspaceRoot ?? state.meta?.cwd ?? "",
     creation: desktopLayoutStyle === "creation", visible: surfaceWorkspacePanelRenderable,
     closeOverlays: closeTransientOverlays, clearLiveWidth: setLiveWorkspacePanelRenderWidth,

@@ -56,6 +56,26 @@ vet / test ./...` skip this directory, while the import path stays under
 
 ## Develop
 
+For browser-only UI development with the built-in mock bridge:
+
+```sh
+cd desktop
+pnpm install          # first run only
+pnpm dev
+```
+
+For the complete Electron application, including the Go service and Vite dev
+server, use the single development entry point:
+
+```sh
+cd desktop
+pnpm install          # first run only
+pnpm dev:desktop
+```
+
+For a production-style renderer build instead of the Vite development server,
+the equivalent manual sequence remains:
+
 ```sh
 cd desktop
 pnpm install                                   # one workspace: frontend + electron
