@@ -71,3 +71,27 @@ func TestOfficialSearchAlwaysUsesMessagesWithoutChangingChat(t *testing.T) {
 		}
 	}
 }
+
+func TestOfficialSearchEndpointAcceptsDerivedRequestURL(t *testing.T) {
+	for _, tc := range []struct {
+		kind, base, request string
+		want                bool
+	}{
+		{"responses", "https://api.deepseek.com", "https://api.deepseek.com/responses", true},
+		{"responses", "https://api.deepseek.com", "HTTPS://API.DEEPSEEK.COM/responses/", true},
+		{"anthropic", "https://api.deepseek.com/anthropic", "https://api.deepseek.com/anthropic/v1/messages", true},
+		{"openai", "https://api.deepseek.com", "https://api.deepseek.com/chat/completions", true},
+		{"responses", "https://api.deepseek.com", "https://api.deepseek.com/v1/responses", false},
+		{"responses", "https://api.deepseek.com", "https://api.deepseek.com/responses?x=1", false},
+		{"anthropic", "https://api.deepseek.com/anthropic", "https://relay.example/anthropic/v1/messages", false},
+	} {
+		entry := ProviderEntry{Name: "ds", Kind: tc.kind, BaseURL: tc.base, RequestURL: tc.request, Model: "deepseek-v4-flash"}
+		if got := IsOfficialDeepSeekSearchEndpoint(&entry); got != tc.want {
+			t.Errorf("%s %s request=%s: official = %v, want %v", tc.kind, tc.base, tc.request, got, tc.want)
+		}
+		entry.RequestURL, entry.ChatURL = "", tc.request
+		if got := IsOfficialDeepSeekSearchEndpoint(&entry); got != tc.want {
+			t.Errorf("%s %s chat=%s: official = %v, want %v", tc.kind, tc.base, tc.request, got, tc.want)
+		}
+	}
+}

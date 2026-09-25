@@ -11,7 +11,7 @@ import (
 // their search requests use a separate official Messages endpoint. Explicit
 // request URL overrides are never redirected to a different endpoint.
 func IsOfficialDeepSeekSearchEndpoint(e *ProviderEntry) bool {
-	if e == nil || e.RequestURL != "" || e.ChatURL != "" {
+	if e == nil || overridesBaseRoute(e, e.RequestURL) || overridesBaseRoute(e, e.ChatURL) {
 		return false
 	}
 	if IsOfficialDeepSeekWebSearchEndpoint(e) {
@@ -24,6 +24,21 @@ func IsOfficialDeepSeekSearchEndpoint(e *ProviderEntry) bool {
 	copy.Kind = "responses"
 	copy.BaseURL = strings.TrimSuffix(strings.TrimRight(e.BaseURL, "/"), "/v1")
 	return IsOfficialDeepSeekWebSearchEndpoint(&copy)
+}
+
+// overridesBaseRoute reports whether an explicit URL names anything other than
+// the standard route derived from the base URL. The Settings editor submits the
+// derived route it displays, and that is not a user-owned override.
+func overridesBaseRoute(e *ProviderEntry, raw string) bool {
+	if strings.TrimSpace(raw) == "" {
+		return false
+	}
+	explicit, ok := normalizedExactProviderRequestURL(raw)
+	if !ok {
+		return true
+	}
+	derived, ok := normalizedExactProviderRequestURL(ProviderRequestURL(e.Kind, e.BaseURL))
+	return !ok || explicit != derived
 }
 
 // EffectiveIndependentWebSearch preserves the existing tri-state switch while

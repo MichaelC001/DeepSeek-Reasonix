@@ -44,7 +44,7 @@ func migrateOfficialDeepSeekChat(c *Config) {
 // Explicit alternate presets, custom models and transport settings remain owned
 // by the user. Model selection, effort, pricing and the search switch survive.
 func isLegacyDeepSeekMessagesDefault(p *ProviderEntry) bool {
-	if p == nil || p.Kind != "anthropic" || !IsOfficialDeepSeekSearchEndpoint(p) ||
+	if p == nil || p.Kind != "anthropic" || p.RequestURL != "" || p.ChatURL != "" || !IsOfficialDeepSeekSearchEndpoint(p) ||
 		p.PresetID != "" || len(p.Headers) != 0 || len(p.ExtraBody) != 0 || p.AuthHeader ||
 		(p.ReasoningProtocol != "" && p.ReasoningProtocol != ReasoningProtocolDeepSeek) {
 		return false
