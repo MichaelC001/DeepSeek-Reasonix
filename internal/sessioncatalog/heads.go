@@ -49,18 +49,40 @@ func projectSessionHeads(info agent.SessionOrderInfo) sessionHeadProjection {
 	}
 	out.selected = idx.SelectedHead
 	out.headCount = len(idx.Heads)
-	out.heads = make([]HeadRecord, 0, len(idx.Heads))
+	out.heads, out.fingerprint = headRecordsFromIndex(info.Path, idx)
+	return out
+}
+
+func headRecordsFromIndex(path string, idx *agent.SessionHeadIndex) ([]HeadRecord, string) {
+	heads := make([]HeadRecord, 0, len(idx.Heads))
+	fingerprint := ""
 	for _, h := range idx.Heads {
-		out.heads = append(out.heads, HeadRecord{
-			Path: info.Path, ID: h.ID, ParentHeadID: h.ParentHead, Kind: h.Kind, Name: h.Name,
+		heads = append(heads, HeadRecord{
+			Path: path, ID: h.ID, ParentHeadID: h.ParentHead, Kind: h.Kind, Name: h.Name,
 			LeafMessageID: h.LeafID, WriterID: h.Writer, LastActivityAt: unixMilli(h.LastActivity),
 			Turns: h.Turns, Preview: h.Preview, Retired: h.Retired, Selected: h.ID == idx.SelectedHead,
 		})
 		if h.ID == idx.SelectedHead {
-			out.fingerprint = "|h:" + h.ID + ":" + h.LeafID
+			fingerprint = "|h:" + h.ID + ":" + h.LeafID
 		}
 	}
-	return out
+	return heads, fingerprint
+}
+
+// projectRepairedHeads lands the head rows of a session whose repair just
+// completed inside that transaction: repair rebuilds a stale head index, and
+// the row must not turn valid while its head_count names rows it lacks.
+func projectRepairedHeads(ctx context.Context, tx *sql.Tx, path, pathKey string) error {
+	idx, err := agent.ReadSessionHeadIndex(path)
+	if err != nil || idx == nil || !idx.Current(path) {
+		return nil
+	}
+	heads, _ := headRecordsFromIndex(path, idx)
+	if _, err := tx.ExecContext(ctx, `UPDATE catalog_sessions SET log_format=?,head_count=?,selected_head_id=?
+		WHERE path_key=?`, idx.SchemaVersion, len(heads), idx.SelectedHead, pathKey); err != nil {
+		return err
+	}
+	return upsertHeadRows(ctx, tx, pathKey, heads)
 }
 
 // writeDirectoryRow lands one scanned session row and its head rows inside

@@ -88,8 +88,10 @@ func RepairSessionListingProjection(ctx context.Context, path string) (result Se
 	if !metaOK {
 		meta = BranchMeta{ID: BranchID(path)}
 	}
-	if result, handled, err := repairSessionListingFromIndex(path, meta); handled || err != nil {
-		return result, err
+	if !sessionHeadIndexStale(path) {
+		if result, handled, err := repairSessionListingFromIndex(path, meta); handled || err != nil {
+			return result, err
+		}
 	}
 	return repairSessionListingFromReplay(ctx, path, meta)
 }
