@@ -170,6 +170,9 @@ func (s *Session) PrepareBatchContext(ctx context.Context, operationID string, b
 		if !event.Optional && !ProjectionKinds[event.Kind] {
 			return PreparedBatch{}, fmt.Errorf("%w: unknown required event %q", ErrUnsupportedVersion, event.Kind)
 		}
+		if err := checkReplacementIdentities(*event); err != nil {
+			return PreparedBatch{}, err
+		}
 		// The durable sequence is assigned at commit time so a rejected batch
 		// never consumes one.
 		event.Sequence = 0

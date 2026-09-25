@@ -54,6 +54,10 @@ func (o *turnOrchestrator) runComposedSyntheticTurn(ctx context.Context, text st
 	c := o.c
 	ctx = agent.WithRawUserInput(ctx, text)
 	ctx = withTurnInputOrigin(ctx, true)
+	// ctx may carry the identity already spent on the turn's own user message.
+	if c.executor != nil {
+		ctx = agent.WithUserMessageIdentity(ctx, c.executor.Session(), agent.NewMessageID())
+	}
 	ctx = c.withTurnContext(ctx, false)
 	ctx = c.withPlannerTurnMetadata(ctx, text, true, c.messageCount())
 	return c.runModelTurn(ctx, c.ComposeSynthetic(text))
