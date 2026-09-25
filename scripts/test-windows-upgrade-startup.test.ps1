@@ -42,7 +42,7 @@ try {
   }
   function Invoke-UpgradeStartup([string]$installRoot, [string]$version, [string]$fixtureHome, [string]$text, [string]$evidence, [bool]$prepareHistorical) {
     Assert-True ($text -eq 'assistant-only marker') 'Startup must require the assistant marker.'
-    Assert-True ($prepareHistorical -eq ((Split-Path $evidence -Leaf) -eq 'first')) 'Only the first launch may need explicit preparation; restart must reopen the legacy history.'
+    Assert-True ($prepareHistorical -eq ((Split-Path $evidence -Leaf) -eq 'restart')) 'The first launch must show legacy history unprepared; only the restart may import it.'
     $script:calls.Add('startup-' + (Split-Path $evidence -Leaf))
   }
   $evidence = Join-Path $testRoot 'success'
@@ -97,6 +97,9 @@ try {
   Assert-True (Test-VisibleUpgradeHistory $root $marker) 'Visible transcript assistant body should pass.'
   $root.Children = @($sidebar, $transcript, $pending)
   Assert-True (-not (Test-VisibleUpgradeHistory $root $marker)) 'Prepared content must not retain the import action.'
+  Assert-True (Test-VisibleUpgradeHistory $root $marker -AllowPendingSource) 'Unprepared legacy history may show the import action beside its body.'
+  $root.Children = @($sidebar, $pending)
+  Assert-True (-not (Test-VisibleUpgradeHistory $root $marker -AllowPendingSource)) 'The import action alone is not visible history.'
   $root.Children = @($sidebar, $transcript)
   $failure = New-UIElement 'Failed to load conversation history. Previous content was kept when available — retry to try again.'
   $transcript.Children = @($body, $failure)
@@ -161,6 +164,9 @@ try {
   $script:upgradeWaitRoot.Children = @($transcript, $pending)
   $unprepared = Wait-VisibleUpgradeHistory -ReadRoot { $script:upgradeWaitRoot } -Text $marker -PrepareHistoricalSession -TimeoutSeconds 1
   Assert-True (-not $unprepared.Found) 'A matching body cannot bypass a still-pending preparation action.'
+  $script:clicked = 0
+  $legacyView = Wait-VisibleUpgradeHistory -ReadRoot { $script:upgradeWaitRoot } -Text $marker -TimeoutSeconds 1
+  Assert-True ($legacyView.Found -and $script:clicked -eq 0) 'Without preparation the legacy body passes beside the import action and nothing is imported.'
   Write-Host 'Windows upgrade orchestration and UI evidence contracts passed (mocked native boundaries).'
 } finally {
   Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue

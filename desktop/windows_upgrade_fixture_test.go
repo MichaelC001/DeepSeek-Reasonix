@@ -5,15 +5,17 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"reasonix/desktop/internal/upgradefixture"
 	"reasonix/internal/agent"
 	"reasonix/internal/config"
 )
 
-func TestWindowsUpgradeFixturePreservesLegacyAcrossRestart(t *testing.T) {
+func TestWindowsUpgradeFixtureImportsLegacyOnlyWhenPrepared(t *testing.T) {
 	isolateDesktopUserDirs(t)
 	home := filepath.Join(t.TempDir(), "home # %20 中文")
 	t.Setenv("REASONIX_HOME", home)
@@ -57,6 +59,9 @@ func TestWindowsUpgradeFixturePreservesLegacyAcrossRestart(t *testing.T) {
 	}
 	for _, phase := range []string{"first", "restart"} {
 		app := NewApp()
+		app.ctx = t.Context()
+		installNoopRuntimeEvents(app)
+		app.initializeDesktopSessionRoot()
 		closeApp := sync.OnceFunc(func() {
 			app.shutdown(context.Background())
 			app.stopHistoricalImports()
@@ -97,6 +102,13 @@ func TestWindowsUpgradeFixturePreservesLegacyAcrossRestart(t *testing.T) {
 			if err := app.backupDesktopUpgradeMetadata(t.Context()); err != nil {
 				t.Fatal(err)
 			}
+			if err := upgradefixture.Run("verify", home, reportPath, "restart"); err == nil {
+				t.Fatal("prepared verification passed before the legacy source was imported")
+			}
+			prepareRestoredUpgradeTab(t, app)
+			if err := upgradefixture.Run("verify", home, reportPath, "first"); err == nil || !strings.Contains(err.Error(), "startup imported or recreated the legacy session") {
+				t.Fatalf("no-import verification must refuse the prepared state: %v", err)
+			}
 		}
 		closeApp()
 		if err := upgradefixture.Run("verify", home, reportPath, phase); err != nil {
@@ -119,5 +131,35 @@ func TestWindowsUpgradeFixturePreservesLegacyAcrossRestart(t *testing.T) {
 		if evidence.History == "" {
 			t.Fatalf("%s lost the saved history", phase)
 		}
+	}
+}
+
+// prepareRestoredUpgradeTab drives what the restored tab's import banner does:
+// PrepareSession on the tab's historical source, then open the ready session.
+func prepareRestoredUpgradeTab(t *testing.T, app *App) {
+	t.Helper()
+	app.tabsRestored = make(chan struct{})
+	app.restoreOrBuildTabs()
+	tab := waitForTabReady(t, app, "upgrade-tab")
+	source := app.metaForTab(tab.ID).HistoricalSource
+	if source == nil {
+		t.Fatal("restored legacy tab does not offer its historical source for preparation")
+	}
+	view, err := app.PrepareSession(SessionSelector{Source: source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for view.Status != "ready" && view.Status != "failed" && view.Status != "blocked" && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+		if view, err = app.GetSessionPreparation(view.OperationID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if view.Status != "ready" || view.Target == nil {
+		t.Fatalf("legacy source was not prepared: %+v", view)
+	}
+	if _, err := app.OpenSession(*view.Target); err != nil {
+		t.Fatal(err)
 	}
 }

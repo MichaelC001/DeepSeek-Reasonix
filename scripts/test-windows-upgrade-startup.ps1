@@ -47,7 +47,7 @@ function Invoke-WindowsUpgradeAcceptance {
   $fixture = Get-Content -LiteralPath $fixtureReport -Raw | ConvertFrom-Json
   if ([string]::IsNullOrWhiteSpace($fixture.visibleText)) { throw 'Fixture assistant body marker is missing.' }
   foreach ($phase in @('first', 'restart')) {
-    Invoke-UpgradeStartup $installRoot $ExpectedVersion $fixtureHome $fixture.visibleText (Join-Path $evidence $phase) ($phase -eq 'first')
+    Invoke-UpgradeStartup $installRoot $ExpectedVersion $fixtureHome $fixture.visibleText (Join-Path $evidence $phase) ($phase -eq 'restart')
     Invoke-UpgradeFixture $fixtureBuilder @('--mode', 'verify', '--home', $fixtureHome, '--report', $fixtureReport, '--phase', $phase)
   }
   @{
