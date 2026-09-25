@@ -1065,7 +1065,7 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 		return subagentEffectiveIdentity(cfg, opts.ProviderResolver, modelName, entry, modelRef, effort)
 	}
 	taskModel := firstNonEmpty(cfg.Agent.SubagentModels["task"], cfg.Agent.SubagentModel)
-	taskEffort := firstNonEmpty(cfg.Agent.SubagentEfforts["task"], cfg.Agent.SubagentEffort)
+	subagentEffort := subagentEffortDefault(cfg, entry, sink)
 	maxSubagentDepth := agent.NormalizeMaxSubagentDepth(cfg.Agent.MaxSubagentDepth)
 	maxSubagentConcurrency, maxParallelWriters := agent.NormalizeConcurrencyLimits(
 		cfg.Agent.MaxSubagentConcurrency, cfg.Agent.MaxParallelWriters,
@@ -1160,7 +1160,7 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 			Gate:                headlessGate,
 			KeepPolicy:          keepPolicy,
 			SubagentModel:       taskModel,
-			SubagentEffort:      taskEffort,
+			SubagentEffort:      firstNonEmpty(cfg.Agent.SubagentEfforts["task"], subagentEffort),
 			ResolveProvider:     resolveSubagentProvider,
 		}).
 			WithTranscripts(subagentStore, root, modelName, entry.Effort).
@@ -1293,7 +1293,7 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 		sk = skill.WithCodeGraphTools(sk, skill.CodeGraphReadTools(reg))
 		prov, price, ctxWin := execProv, entry.Price, entry.ContextWindow
 		modelRef := subagentModelRef(cfg, sk)
-		effortRef := subagentEffortRef(cfg, sk)
+		effortRef := subagentEffortRef(cfg, sk, subagentEffort)
 		if modelRef != "" || effortRef != "" {
 			p, pr, cw, err := resolveSubagentProvider(modelRef, effortRef)
 			if err != nil {
@@ -1362,7 +1362,7 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 		sk = skill.WithCodeGraphTools(sk, skill.CodeGraphReadTools(reg))
 		prov, price, ctxWin := execProv, entry.Price, entry.ContextWindow
 		modelRef := subagentModelRef(cfg, sk)
-		effortRef := subagentEffortRef(cfg, sk)
+		effortRef := subagentEffortRef(cfg, sk, subagentEffort)
 		if modelRef != "" || effortRef != "" {
 			p, pr, cw, err := resolveSubagentProvider(modelRef, effortRef)
 			if err != nil {
@@ -1463,7 +1463,7 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 		return agent.FormatSubagentRunResult(answer, run, false), nil
 	}
 	skillProfile := func(sk skill.Skill) *event.Profile {
-		model, effort := subagentModelRef(cfg, sk), subagentEffortRef(cfg, sk)
+		model, effort := subagentModelRef(cfg, sk), subagentEffortRef(cfg, sk, subagentEffort)
 		if model == "" && effort == "" {
 			return nil
 		}
@@ -2249,7 +2249,7 @@ func subagentModelRef(cfg *config.Config, sk skill.Skill) string {
 	return strings.TrimSpace(cfg.Agent.SubagentModel)
 }
 
-func subagentEffortRef(cfg *config.Config, sk skill.Skill) string {
+func subagentEffortRef(cfg *config.Config, sk skill.Skill, defaultEffort string) string {
 	if cfg != nil {
 		for _, key := range SubagentModelKeys(sk.Name) {
 			if e := strings.TrimSpace(cfg.Agent.SubagentEfforts[key]); e != "" {
@@ -2260,10 +2260,7 @@ func subagentEffortRef(cfg *config.Config, sk skill.Skill) string {
 	if e := strings.TrimSpace(sk.Effort); e != "" {
 		return e
 	}
-	if cfg == nil {
-		return ""
-	}
-	return strings.TrimSpace(cfg.Agent.SubagentEffort)
+	return defaultEffort
 }
 
 // SubagentModelKeys returns the cfg.Agent.SubagentModels/SubagentEfforts map

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"reasonix/internal/config"
+	"reasonix/internal/event"
 	"reasonix/internal/extension/providerext"
 	"reasonix/internal/provider"
 )
@@ -101,11 +102,7 @@ func preflightRoleReasoning(cfg *config.Config, opts Options, resolver provider.
 	if subagentModel == "" {
 		subagentModel = model
 	}
-	var subagentEffort *string
-	if cfg.Agent.SubagentEffort != "" {
-		value := cfg.Agent.SubagentEffort
-		subagentEffort = &value
-	}
+	subagentEffort := preflightSubagentEffort(cfg, resolver, model)
 	if cfg.Agent.SubagentModel != "" || subagentEffort != nil {
 		roles = append(roles, roleSelection{role: "subagent", ref: subagentModel, source: "agent.subagent_effort", effort: subagentEffort, optional: true})
 	}
@@ -172,4 +169,45 @@ func preflightRoleReasoning(cfg *config.Config, opts Options, resolver provider.
 		}
 	}
 	return nil
+}
+
+// inheritedSubagentEffort is agent.subagent_effort as a subagent that follows
+// the execution model receives it. The setting is a cross-model default, so a
+// model that cannot take it falls back to its own default and the dropped value
+// is returned for a notice; paired with agent.subagent_model it stays strict.
+func inheritedSubagentEffort(cfg *config.Config, execution *config.ProviderEntry) (effort, dropped string) {
+	effort = strings.TrimSpace(cfg.Agent.SubagentEffort)
+	if effort == "" || strings.TrimSpace(cfg.Agent.SubagentModel) != "" || execution == nil {
+		return effort, ""
+	}
+	entry := *config.ResolveReasoningEntry(execution)
+	entry.Effort = effort
+	if entry.Kind == "anthropic" && entry.Thinking == "" {
+		entry.Thinking = "adaptive"
+	}
+	if config.ReasoningCapabilityForEntry(&entry).Validate(entry.Model, config.EffectiveEffort(&entry)) != nil {
+		return "", effort
+	}
+	return effort, ""
+}
+
+func preflightSubagentEffort(cfg *config.Config, resolver provider.Resolver, model string) *string {
+	value := strings.TrimSpace(cfg.Agent.SubagentEffort)
+	if execution, _, err := resolveModelEntry(resolver, cfg, model); err == nil {
+		value, _ = inheritedSubagentEffort(cfg, execution)
+	}
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+// subagentEffortDefault is the agent.subagent_effort the assembled runtime
+// hands its subagents, with a notice naming a value the model could not take.
+func subagentEffortDefault(cfg *config.Config, execution *config.ProviderEntry, sink event.Sink) string {
+	effort, dropped := inheritedSubagentEffort(cfg, execution)
+	if dropped != "" {
+		sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn, Text: "Subagents use the model's default effort.", Detail: fmt.Sprintf("agent.subagent_effort = %q is not supported by %q, which subagents inherit because agent.subagent_model is unset; the setting is kept and applies again on a model that supports it.", dropped, execution.Model)})
+	}
+	return effort
 }
