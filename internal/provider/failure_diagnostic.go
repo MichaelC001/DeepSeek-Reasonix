@@ -60,6 +60,10 @@ func ProviderDisplayLabel(providerID, displayName, protocol string) string {
 	return name + " · " + protocolName
 }
 
+// FailureKindCancelled classifies a context cancellation: the caller stopped
+// the request, so no provider failure exists to report.
+const FailureKindCancelled = "cancelled"
+
 // FailureDiagnostic contains safe classification only, never response bodies.
 type FailureDiagnostic struct {
 	Kind                string `json:"kind"`
@@ -126,7 +130,7 @@ func DiagnoseFailure(err error) *FailureDiagnostic {
 	}
 	switch {
 	case errors.Is(err, context.Canceled):
-		d.Kind = "cancelled"
+		d.Kind = FailureKindCancelled
 	case AsRecoveryWaitExhausted(err) != nil:
 		d.Kind = "recovery_wait_exhausted"
 	case AsQuotaError(err) != nil:

@@ -26,9 +26,11 @@ func (p *Projection) applyTerminalNotices(e event.Event) {
 		row.Code, row.Content = e.Outcome, "The host could not confirm this turn is complete."
 	case e.Status == event.TurnInterrupted || e.Status == event.TurnRecoveryRequired:
 		row = interruptedNotice(nil)
+		if e.Err != nil && e.Diagnostic != nil && e.Diagnostic.Kind != provider.FailureKindCancelled {
+			rows = append(rows, providerFailureNotice(e))
+		}
 	case e.Err != nil:
-		row.Code, row.Level, row.Content, row.Detail = event.NoticeCodeProviderRequestFailed, "warn", e.Err.Error(), e.Detail
-		row.Diagnostic = e.Diagnostic
+		row = providerFailureNotice(e)
 	default:
 		row = Message{}
 	}
@@ -57,6 +59,10 @@ func (p *Projection) applyTerminalNotices(e event.Event) {
 		row.TurnID, row.Source = e.TurnID, e.Source
 		p.buffer.messages = append(p.buffer.messages, &bufferedMessage{message: row})
 	}
+}
+
+func providerFailureNotice(e event.Event) Message {
+	return Message{Role: "notice", Code: event.NoticeCodeProviderRequestFailed, Level: "warn", Content: e.Err.Error(), Detail: e.Detail, Diagnostic: e.Diagnostic}
 }
 
 func (p *Projection) retireRecoveryNotices() {

@@ -1,7 +1,9 @@
 package transcript
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"reasonix/internal/event"
@@ -65,6 +67,54 @@ func TestSnapshotRetainsTerminalRecoveryAndFailure(t *testing.T) {
 				t.Fatal(err)
 			}
 			check(restored)
+		})
+	}
+}
+
+func TestInterruptedTurnKeepsProviderFailure(t *testing.T) {
+	quota := &provider.QuotaError{Status: 402, Provider: "relay", Protocol: "openai"}
+	for _, tc := range []struct {
+		name     string
+		e        event.Event
+		wantFail bool
+	}{
+		{"recovery required with quota error", event.Event{Status: event.TurnRecoveryRequired, Err: quota, Diagnostic: provider.DiagnoseFailure(quota),
+			Recovery: &event.RecoveryStatus{State: "recovery_required", Reason: "silent_interruption"}}, true},
+		{"interrupted with quota error", event.Event{Status: event.TurnInterrupted, Err: quota, Diagnostic: provider.DiagnoseFailure(quota)}, true},
+		{"user cancel", event.Event{Status: event.TurnInterrupted, Err: context.Canceled, Diagnostic: provider.DiagnoseFailure(context.Canceled)}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, err := NewProjection(testIdentity, nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.e.Kind = event.TurnDone
+			w := eventwire.ToWire(tc.e)
+			if err := p.Apply(turnevent.Envelope{SessionID: testIdentity.SessionID, RuntimeEpoch: testIdentity.RuntimeEpoch, TurnID: "turn", Sequence: 1, Kind: w.Kind, Status: tc.e.Status, Event: w}); err != nil {
+				t.Fatal(err)
+			}
+			var interrupted bool
+			var failure *Message
+			for _, row := range snapshot(t, p).Records {
+				switch row.Message.Code {
+				case event.NoticeCodeCancelledTurn:
+					interrupted = true
+				case event.NoticeCodeProviderRequestFailed:
+					failure = &row.Message
+				}
+			}
+			if !interrupted {
+				t.Fatal("interrupted notice missing")
+			}
+			if !tc.wantFail {
+				if failure != nil {
+					t.Fatalf("cancelled turn rendered a provider failure: %q", failure.Content)
+				}
+				return
+			}
+			if failure == nil || !strings.Contains(failure.Content, "HTTP 402") || failure.Level != "warn" || failure.Diagnostic == nil || failure.Diagnostic.Status != 402 {
+				t.Fatalf("provider failure hidden behind interrupted notice: %+v", failure)
+			}
 		})
 	}
 }
