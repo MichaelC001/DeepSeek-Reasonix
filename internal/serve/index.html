@@ -733,6 +733,7 @@ const __T = {
     'use_model': 'Use',
     'no_sessions': 'No sessions',
     'error_loading': 'Error loading',
+    'resume_failed': 'Could not switch to that session',
     'no_checkpoints': 'No checkpoints available.',
     'no_conversation': 'Start a conversation before using this action.',
     'no_branches': 'No conversation branches yet.',
@@ -885,6 +886,7 @@ const __T = {
     'use_model': '使用',
     'no_sessions': '暂无会话',
     'error_loading': '加载失败',
+    'resume_failed': '无法切换到该会话',
     'no_checkpoints': '暂无可用检查点',
     'no_conversation': '先开始一段对话，再使用此操作。',
     'no_branches': '暂无会话分支',
@@ -1742,7 +1744,7 @@ function renderSessions(){
     const title=sessionTitle(s);
     const meta=s.turns?s.turns+' turns':'';
     item.innerHTML='<svg class="session-item__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><div class="session-item__body"><div class="session-item__title">'+escHtml(title)+'</div><div class="session-item__meta">'+escHtml(meta)+'</div></div><button type="button" class="session-del" data-name="'+escAttr(s.name)+'" title="'+escAttr(__('delete_session'))+'">&times;</button>';
-    item.onclick=ev=>{if(ev.target.closest('.session-del')||running||s.current)return;post('/resume',{path:s.path}).then(()=>{log.innerHTML='';log.appendChild(welcome);showWelcome();hasVisibleHistory=false;checkpointCount=0;todosDismissed=false;resetCumulativeStats();loadSessions();updateActionAvailability();setTimeout(()=>fetch('/history').then(r=>r.json()).then(msgs=>{renderHistoryMessages(msgs);fetchTodos();refreshCheckpointAvailability();}),300);});};
+    item.onclick=ev=>{if(ev.target.closest('.session-del')||running||s.current)return;post('/resume',{path:s.path,sessionId:s.sessionId,hostId:s.hostId,name:s.name}).then(async r=>{if(!r.ok){const detail=(await r.text().catch(()=>'')).trim();showNotice(__('resume_failed')+' (HTTP '+r.status+(detail?': '+detail:'')+')','warn');return;}log.innerHTML='';log.appendChild(welcome);showWelcome();hasVisibleHistory=false;checkpointCount=0;todosDismissed=false;resetCumulativeStats();loadSessions();updateActionAvailability();setTimeout(()=>fetch('/history').then(r=>r.json()).then(msgs=>{renderHistoryMessages(msgs);fetchTodos();refreshCheckpointAvailability();}),300);}).catch(()=>showNotice(__('resume_failed'),'warn'));};
     list.appendChild(item);
   });
 }
