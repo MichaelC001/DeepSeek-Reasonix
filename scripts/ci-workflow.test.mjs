@@ -247,7 +247,7 @@ test("macOS signing diagnostics require protected main and cannot publish", () =
 test("required desktop aggregate rejects every failed, cancelled or unexpectedly skipped child", () => {
   const script = shellStep(job(ci, "desktop"), "Verify desktop validation jobs");
   const success = { CHANGES_RESULT: "success", PREPARE_REQUIRED: "true", NATIVE_REQUIRED: "true", FRONTEND_REQUIRED: "true", BROWSER_REQUIRED: "true",
-    PACKAGE_REQUIRED: "true", PREPARE_RESULT: "success", GO_RESULT: "success", GO_RACE_RESULT: "success", FRONTEND_RESULT: "success", BROWSER_RESULT: "success",
+    PACKAGE_REQUIRED: "true", RACE_REQUIRED: "true", PREPARE_RESULT: "success", GO_RESULT: "success", GO_RACE_RESULT: "success", FRONTEND_RESULT: "success", BROWSER_RESULT: "success",
     MACOS_RESULT: "success", WINDOWS_RESULT: "success", WINDOWS_GO_RESULT: "success", PACKAGE_RESULT: "success" };
   const run = env => spawnSync("bash", ["-e", "-c", script], { env: { ...process.env, ...env } }).status;
   assert.equal(run(success), 0);
@@ -258,8 +258,11 @@ test("required desktop aggregate rejects every failed, cancelled or unexpectedly
   // A pull request that cannot affect the desktop module: every child skips
   // except the browser and Windows Go aggregates, which validate their groups.
   assert.equal(run({ ...success, PREPARE_REQUIRED: "false", NATIVE_REQUIRED: "false", FRONTEND_REQUIRED: "false", BROWSER_REQUIRED: "false",
-    PACKAGE_REQUIRED: "false", PREPARE_RESULT: "skipped", GO_RESULT: "skipped", GO_RACE_RESULT: "skipped", FRONTEND_RESULT: "skipped",
+    PACKAGE_REQUIRED: "false", RACE_REQUIRED: "false", PREPARE_RESULT: "skipped", GO_RESULT: "skipped", GO_RACE_RESULT: "skipped", FRONTEND_RESULT: "skipped",
     BROWSER_RESULT: "success", MACOS_RESULT: "skipped", WINDOWS_RESULT: "skipped", WINDOWS_GO_RESULT: "success", PACKAGE_RESULT: "skipped" }), 0);
+  // A pull request that touches native code runs every native child except the race sweep.
+  assert.equal(run({ ...success, RACE_REQUIRED: "false", GO_RACE_RESULT: "skipped" }), 0);
+  assert.notEqual(run({ ...success, RACE_REQUIRED: "false", GO_RACE_RESULT: "success" }), 0);
   // A pull request unrelated to packaging must skip it.
   assert.equal(run({ ...success, PACKAGE_REQUIRED: "false", PACKAGE_RESULT: "skipped" }), 0);
   assert.notEqual(run({ ...success, PACKAGE_REQUIRED: "false", PACKAGE_RESULT: "success" }), 0);
@@ -505,6 +508,24 @@ test("Desktop race uses every verified partition and one shared cache writer", (
   }
   assert.match(body, /matrix.group == 'A-B' && steps.gocache.outputs.key/);
   assert.match(job(ci, "desktop"), /GO_RACE_RESULT: \$\{\{ needs.desktop-go-race.result \}\}/);
+});
+
+test("Desktop race runs on pushes, never on pull requests, and the aggregate expects exactly that", () => {
+  const body = job(ci, "desktop-go-race");
+  const aggregate = job(ci, "desktop").match(/RACE_REQUIRED: \$\{\{ (.+) \}\}/)[1];
+  assert.match(job(ci, "desktop"), /test "\$GO_RACE_RESULT" = "\$\(expected "\$RACE_REQUIRED"\)"/);
+  for (const event of ["pull_request", "push", "workflow_dispatch"]) {
+    for (const native of ["true", "false"]) {
+      for (const notes_only of ["true", "false"]) {
+        const context = { github: { event_name: event }, needs: {
+          "desktop-prepare": { result: "success" }, changes: { outputs: { native, notes_only } },
+        } };
+        const runs = condition(body, context);
+        assert.equal(runs, event !== "pull_request" && notes_only !== "true", `${event} native=${native} notes=${notes_only}`);
+        assert.equal(vm.runInNewContext(aggregate, context), runs);
+      }
+    }
+  }
 });
 
 test("installer evidence excludes running payloads and cache files on every publisher", () => {

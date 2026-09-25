@@ -534,6 +534,7 @@ jobs:
           NATIVE_REQUIRED: ${{ (github.event_name != 'pull_request' && needs.changes.outputs.notes_only != 'true') || needs.changes.outputs.native != 'false' }}
           FRONTEND_REQUIRED: ${{ (github.event_name != 'pull_request' && needs.changes.outputs.notes_only != 'true') || needs.changes.outputs.frontend != 'false' || needs.changes.outputs.electron != 'false' }}
           PACKAGE_REQUIRED: ${{ (github.event_name != 'pull_request' && needs.changes.outputs.notes_only != 'true') || needs.changes.outputs.packaging != 'false' }}
+          RACE_REQUIRED: ${{ github.event_name != 'pull_request' && needs.changes.outputs.notes_only != 'true' }}
           PREPARE_RESULT: ${{ needs.desktop-prepare.result }}
           GO_RESULT: ${{ needs.desktop-go.result }}
           GO_RACE_RESULT: ${{ needs.desktop-go-race.result }}
@@ -548,7 +549,7 @@ jobs:
           expected() { if [ "$1" = true ]; then echo success; else echo skipped; fi; }
           test "$PREPARE_RESULT" = "$(expected "$PREPARE_REQUIRED")"
           test "$GO_RESULT" = "$(expected "$NATIVE_REQUIRED")"
-          test "$GO_RACE_RESULT" = "$(expected "$NATIVE_REQUIRED")"
+          test "$GO_RACE_RESULT" = "$(expected "$RACE_REQUIRED")"
           test "$FRONTEND_RESULT" = "$(expected "$FRONTEND_REQUIRED")"
           # The browser aggregate always runs and validates skipped groups itself.
           test "$BROWSER_RESULT" = success
@@ -920,9 +921,11 @@ jobs:
 
   # The full desktop race package exceeded Go's ten-minute package alarm.
   # Reuse the verified test partition to keep complete coverage in parallel.
+  # Pull requests run these partitions without -race (desktop-go and the Windows
+  # groups); the race sweep runs once per main-v2 push instead of per PR head.
   desktop-go-race:
     needs: [changes, desktop-prepare]
-    if: ${{ !cancelled() && needs.desktop-prepare.result == 'success' && ((github.event_name != 'pull_request' && needs.changes.outputs.notes_only != 'true') || needs.changes.outputs.native != 'false') }}
+    if: ${{ !cancelled() && needs.desktop-prepare.result == 'success' && github.event_name != 'pull_request' && needs.changes.outputs.notes_only != 'true' }}
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     strategy:
