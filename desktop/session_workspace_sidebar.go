@@ -350,6 +350,9 @@ func (a *App) mergeCanonicalWorkspaceShellsFromProjection(projects []ProjectNode
 		if !workspace.Visible || present[id] {
 			continue
 		}
+		if id == workspacestate.GlobalWorkspaceID && !globalWorkspaceHasSessions(state) {
+			continue
+		}
 		kind, key := "project", "project_"+workspace.Root
 		if id == workspacestate.GlobalWorkspaceID {
 			kind, key = "global_folder", "global_folder"
@@ -409,6 +412,23 @@ func (a *App) mergeCanonicalWorkspaceShellsFromProjection(projects []ProjectNode
 		a.ReleaseReadSnapshot(snapshotID)
 	}
 	return projects
+}
+
+// globalWorkspaceHasSessions decides whether the registry alone keeps Global
+// in the sidebar. Global is never added by the user: every draft or session
+// aimed at it marks it Visible, so Visible without a session is not a request.
+func globalWorkspaceHasSessions(state workspacestate.State) bool {
+	for _, sessionID := range state.Workspaces[workspacestate.GlobalWorkspaceID].SessionIDs {
+		if lifecycle := state.SessionStates[sessionID].Lifecycle; lifecycle != workspacestate.Archived && lifecycle != workspacestate.Deleted {
+			return true
+		}
+	}
+	for _, mapping := range state.SourceMappings {
+		if mapping.WorkspaceID == workspacestate.GlobalWorkspaceID {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) unadoptedLegacyTopics(req ProjectTopicPageRequest, adopted, adoptedTopics map[string]bool) (ProjectTopicPage, error) {
