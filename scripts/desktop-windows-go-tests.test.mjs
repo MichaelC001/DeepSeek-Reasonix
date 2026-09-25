@@ -46,7 +46,7 @@ test("CI runs all groups separately and retains the aggregate and native probe",
   const matrix = matrixJob.match(/group: \[([^\]]+)\]/)[1].split(",").map(value => value.trim());
   assert.deepEqual(matrix, groups);
   assert.match(matrixJob, /fail-fast: false/);
-  assert.match(matrixJob, /actions\/setup-node@v7/);
+  assert.match(matrixJob, /actions\/setup-node@[0-9a-f]{40} # v7\b/);
   assert.doesNotMatch(matrixJob, /cache: pnpm/, "Go-only groups must not cache a pnpm store they never create");
   assert.match(matrixJob, /run: node \.\.\/scripts\/desktop-windows-go-tests\.mjs \$\{\{ matrix.group \}\}/);
   assert.match(matrixJob, /run: go test -run '\^TestWindowsTerminalProcessConPTYSmoke\$' \./);

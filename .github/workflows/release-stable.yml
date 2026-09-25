@@ -65,17 +65,17 @@ jobs:
       desktop_tag: ${{ steps.release.outputs.desktop_tag }}
       sha: ${{ steps.release.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           # A recovery dispatch uses the fixed workflow/scripts from protected
           # main-v2. Publishers still check out the immutable approved tag SHA.
           ref: ${{ github.sha }}
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
       - name: Resolve stable release
@@ -111,7 +111,7 @@ jobs:
       # which can predate its reviewed release-note entry. Carry the exact file
       # validated by this protected control-plane job into both publishers.
       - name: Upload reviewed release notes
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: orchestrator-reviewed-release-notes
           path: /tmp/release-notes.md
@@ -225,15 +225,15 @@ jobs:
               exit 1
             fi
           done
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Postflight belongs to the trusted control plane, not the old build
           # candidate, which may predate this verifier.
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: false

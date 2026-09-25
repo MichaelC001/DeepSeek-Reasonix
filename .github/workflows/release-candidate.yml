@@ -42,14 +42,14 @@ jobs:
       attestations: read
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: false
@@ -186,7 +186,7 @@ jobs:
         run: bash scripts/verify-release-push-ci.sh "$RELEASE_SOURCE_SHA"
       - name: Checkout immutable product for notes validation
         if: steps.existing.outputs.reuse != 'true'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           path: product
@@ -209,15 +209,15 @@ jobs:
     if: needs.resolve.outputs.reuse != 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
       - name: Build each CLI binary once and package both surfaces
@@ -227,7 +227,7 @@ jobs:
           RELEASE_BUILD_TIME="$(git show -s --format=%cI "$RELEASE_SOURCE_SHA")"
           export RELEASE_BUILD_TIME
           node scripts/build-release-cli-candidate.mjs "${{ needs.resolve.outputs.version }}" candidate-cli
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: candidate-cli-${{ needs.resolve.outputs.candidate_id }}
           path: |
@@ -272,50 +272,50 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: candidate-cli-${{ needs.resolve.outputs.candidate_id }}
           path: payload
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-darwin-arm64
           path: payload/desktop/darwin-arm64
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-darwin-amd64
           path: payload/desktop/darwin-amd64
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-darwin-universal
           path: payload/desktop/darwin-universal
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-windows-amd64
           path: payload/desktop/windows-amd64
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-windows-arm64
           path: payload/desktop/windows-arm64
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-linux-amd64
           path: payload/desktop/linux-amd64
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-receipt-windows-amd64
           path: payload/evidence
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-receipt-windows-arm64
           path: payload/evidence
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.desktop.outputs.artifact_prefix }}-receipt-macos-universal-intel
           path: payload/evidence
@@ -324,12 +324,12 @@ jobs:
           test -s payload/evidence/windows-amd64.json
           test -s payload/evidence/windows-arm64.json
           test -s payload/evidence/macos-universal-intel.json
-      - uses: actions/attest-build-provenance@v3
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: payload/**/*
       - name: Upload immutable candidate payload
         id: payload
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ needs.resolve.outputs.artifact_namespace }}-payload-${{ needs.resolve.outputs.candidate_id }}
           path: payload
@@ -338,7 +338,7 @@ jobs:
           retention-days: 30
       - name: Retain native acceptance evidence
         id: evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ needs.resolve.outputs.artifact_namespace }}-evidence-${{ needs.resolve.outputs.candidate_id }}
           path: payload/evidence
@@ -381,10 +381,10 @@ jobs:
           else
             node scripts/release-candidate.mjs verify payload record/record.json
           fi
-      - uses: actions/attest-build-provenance@v3
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: record/record.json
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ needs.resolve.outputs.artifact_namespace }}-record-${{ needs.resolve.outputs.candidate_id }}
           path: record/record.json
@@ -419,7 +419,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
       - name: Record queue, execution, and critical-path evidence
@@ -434,7 +434,7 @@ jobs:
             --summary "$GITHUB_STEP_SUMMARY" \
             --output "$RUNNER_TEMP/candidate-timing.json" \
             --title "Release candidate timing"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-candidate-timing-${{ needs.resolve.outputs.candidate_id || github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/candidate-timing.json

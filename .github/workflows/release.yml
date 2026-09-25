@@ -86,7 +86,7 @@ jobs:
       prerelease: ${{ steps.release.outputs.prerelease }}
       sha: ${{ steps.candidate.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -142,7 +142,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -186,10 +186,10 @@ jobs:
     if: ${{ always() && !cancelled() && needs.resolve.result == 'success' && ((inputs.orchestrated && needs.orchestration-guard.result == 'success') || (!inputs.orchestrated && needs.release-gate.result == 'success')) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         if: ${{ !inputs.candidate_verified }}
         with:
           go-version-file: go.mod
@@ -217,14 +217,14 @@ jobs:
     # Official standalone recovery passes release-gate above. This job therefore
     # must not add a second GitHub environment approval.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.sha }}
       # Recovery may build an immutable tag that predates the current recovery
       # policy. Keep product sources pinned above, but execute publication
       # decisions from the protected workflow commit.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           path: release-control
@@ -243,16 +243,16 @@ jobs:
             printf 'product checkout is dirty before release:\n%s\n' "$dirty" >&2
             exit 1
           fi
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
       - name: Download sealed release candidate
         if: ${{ inputs.candidate_artifact_name != '' }}
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ inputs.candidate_artifact_name }}
           path: ${{ runner.temp }}/release-candidate
@@ -262,7 +262,7 @@ jobs:
         run: sha256sum -c SHA256SUMS
       - name: Download orchestrator-reviewed release notes
         if: ${{ inputs.orchestrated }}
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: orchestrator-reviewed-release-notes
           path: /tmp/orchestrator-reviewed-release-notes
@@ -325,7 +325,7 @@ jobs:
           fi
           test "$decision" = "publish" -o "$decision" = "reuse"
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
-      - uses: goreleaser/goreleaser-action@v7
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
         if: ${{ steps.publication.outputs.decision == 'publish' && inputs.candidate_artifact_name == '' }}
         with:
           version: '~> v2'

@@ -24,15 +24,15 @@ jobs:
     outputs:
       source_sha: ${{ steps.identity.outputs.source_sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: false
@@ -64,7 +64,7 @@ jobs:
           DESKTOP_TAG: desktop-v${{ inputs.version }}
           RELEASE_LEDGER_OUTPUT: ${{ runner.temp }}/site-recovery-preflight.json
         run: bash scripts/verify-stable-release-artifacts.sh
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: site-recovery-preflight-${{ inputs.version }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/site-recovery-preflight.json
@@ -80,14 +80,14 @@ jobs:
       actions: write
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: false
@@ -103,7 +103,7 @@ jobs:
         run: bash scripts/sync-release-site.sh
       - name: Preserve successful or incomplete recovery evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-site-recovery-ledger-${{ inputs.version }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/publication-ledger.json

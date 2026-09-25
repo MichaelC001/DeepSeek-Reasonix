@@ -131,7 +131,7 @@ test("both release artifacts use the shared notarization gate and diagnostics su
   const upload = workflow.split("- name: Upload Apple notarization diagnostics")[1]?.split("\n      #")[0];
   assert.ok(upload);
   assert.match(upload, /always\(\) && runner.os == 'macOS'/);
-  assert.match(upload, /uses: actions\/upload-artifact@v7/);
+  assert.match(upload, /uses: actions\/upload-artifact@[0-9a-f]{40} # v7\b/);
   assert.match(upload, /path: \$\{\{ runner.temp \}\}\/apple-notarization\/\*\.json/);
   assert.match(workflow, /APPLE_NOTARIZATION_LOG_DIR: \$\{\{ runner.temp \}\}\/apple-notarization/);
 });
