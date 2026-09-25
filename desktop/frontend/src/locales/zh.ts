@@ -3562,6 +3562,7 @@ export const zh: Record<DictKey, string> = {
   "crash.sending": "发送中…",
   "crash.sent": "已发送，谢谢！",
   "crash.sendFailed": "发送失败 —— 请改用复制",
+  "crash.restart": "重启 Reasonix",
   "crash.privacyNote": "报告仅包含上方错误文本（路径中的用户名已移除）以及应用版本和操作系统。",
   "performanceReport.title": "Reasonix 检测到响应卡顿",
   "performanceReport.dismiss": "关闭",

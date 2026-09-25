@@ -2,6 +2,7 @@
 // whole tree (blank window), and global errors/rejections leave no trace either.
 import { addBreadcrumb, dumpBreadcrumbs, snapshotBreadcrumbs, type Breadcrumb } from "./breadcrumbs";
 import { writeClipboardText } from "./clipboard";
+import { crashRestartButton } from "./crashRestart";
 import { desktopHost } from "./desktopHost";
 import { fmtNumber, formatPerformanceContext } from "./performanceReportFormat";
 export { formatPerformanceContext } from "./performanceReportFormat";
@@ -634,7 +635,7 @@ export function paintCrashOverlay(payload: CrashPayload) {
   actions.className = "crash-overlay__actions";
   const send = sendButton(payload);
   if (send) actions.append(send);
-  actions.append(copy);
+  actions.append(copy, crashRestartButton());
   const note = document.createElement("div");
   note.className = "crash-overlay__note";
   note.textContent = t("crash.privacyNote");

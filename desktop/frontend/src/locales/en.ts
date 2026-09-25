@@ -3559,6 +3559,7 @@ export const en = {
   "crash.sending": "Sending…",
   "crash.sent": "Sent — thanks!",
   "crash.sendFailed": "Send failed — use Copy instead",
+  "crash.restart": "Restart Reasonix",
   "crash.privacyNote": "The report contains only the error text above (user names in paths removed) plus app version and OS.",
   "performanceReport.title": "Reasonix noticed a responsiveness issue",
   "performanceReport.dismiss": "Dismiss",
