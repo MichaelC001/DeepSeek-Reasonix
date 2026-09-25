@@ -25,11 +25,32 @@ func sameDesktopPath(a, b string) bool {
 }
 
 func sameDesktopPathStrict(a, b string) (bool, error) {
+	return newDesktopPathMatcher().sameStrict(a, b)
+}
+
+// resolveDesktopPathIdentity is the one filesystem probe behind every desktop
+// path comparison.
+var resolveDesktopPathIdentity = pathidentity.Resolve
+
+// desktopPathMatcher resolves each distinct path once for the pass that owns
+// it. A pass comparing many roots against each other shares one matcher.
+type desktopPathMatcher struct{ matcher *pathidentity.Matcher }
+
+func newDesktopPathMatcher() desktopPathMatcher {
+	return desktopPathMatcher{pathidentity.NewMatcher(pathidentity.Options{FollowLeaf: true}, resolveDesktopPathIdentity)}
+}
+
+func (m desktopPathMatcher) same(a, b string) bool {
+	same, err := m.sameStrict(a, b)
+	return err == nil && same
+}
+
+func (m desktopPathMatcher) sameStrict(a, b string) (bool, error) {
 	a, b = cleanDesktopPath(a), cleanDesktopPath(b)
 	if a == "" || b == "" {
 		return false, &pathidentity.Error{Kind: pathidentity.ErrorInvalid, Stage: "input", Err: errors.New("desktop path is empty")}
 	}
-	return pathidentity.Same(a, b, pathidentity.Options{FollowLeaf: true})
+	return m.matcher.Same(a, b)
 }
 
 func projectRootKey(root string) string {
@@ -37,7 +58,7 @@ func projectRootKey(root string) string {
 	if root == "" {
 		return ""
 	}
-	identity, err := pathidentity.Resolve(root, pathidentity.Options{FollowLeaf: true})
+	identity, err := resolveDesktopPathIdentity(root, pathidentity.Options{FollowLeaf: true})
 	if err != nil {
 		return ""
 	}
