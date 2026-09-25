@@ -82,6 +82,18 @@ type OpenOptions struct {
 	ResumeKey string
 }
 
+// WALSizeLimit is the size a disk projection's WAL is truncated back to after
+// a checkpoint.
+const WALSizeLimit = 4 << 20
+
+// CheckpointBeforeClose folds the WAL into the database and truncates it. It is
+// best-effort: another process's reader leaves the WAL for its next checkpoint.
+func CheckpointBeforeClose(ctx context.Context, db *sql.DB) {
+	if db != nil {
+		_, _ = db.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`)
+	}
+}
+
 type Handle struct {
 	DB     *sql.DB
 	Status Status
@@ -207,8 +219,10 @@ func open(ctx context.Context, opts OpenOptions, mode Mode, checkIntegrity bool)
 			opts.Now().UnixNano(), memoryDatabaseSequence.Add(1))
 	} else {
 		var err error
+		// journal_size_limit is per connection, so it rides the DSN to reach
+		// every pooled one; without it a checkpointed WAL keeps its peak size.
 		dsn, err = sqliteuri.Disk(opts.Path, url.Values{
-			"_pragma": {"busy_timeout(150)", "foreign_keys(1)"},
+			"_pragma": {"busy_timeout(150)", "foreign_keys(1)", fmt.Sprintf("journal_size_limit(%d)", WALSizeLimit)},
 		})
 		if err != nil {
 			return nil, err
