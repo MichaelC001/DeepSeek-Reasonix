@@ -168,6 +168,10 @@ build_service() {
 		GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w $service_ldflags" -o "$service_tmp/arm64" .
 		lipo -create "$service_tmp/amd64" "$service_tmp/arm64" -output "$service_out"
 		rm -rf "$service_tmp"
+	elif [ "$os" = linux ]; then
+		# cgo would bind the service to the runner's glibc; nothing on Linux needs it
+		# and verify.mjs refuses a dynamically linked Go member.
+		GOOS=linux GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w $service_ldflags" -o "$service_out" .
 	else
 		GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w $service_ldflags" -o "$service_out" .
 	fi

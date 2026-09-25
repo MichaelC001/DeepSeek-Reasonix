@@ -8,6 +8,8 @@ import { spawnSync } from "node:child_process";
 import { deflateRawSync } from "node:zlib";
 import {
   checkEntryModes,
+  checkStaticGoMembers,
+  elfInterpreter,
   checkMembers,
   displayVersion,
   inferArtifactKind,
@@ -415,4 +417,51 @@ test("installer unlock checks do not create or lock missing release entries", ()
     assert.ok(at >= 0, `missing existence guard for ${open[1]}`);
     assert.match(preceding.slice(at), /^IfFileExists [^\n]+\r?\n\s+ClearErrors\s+$/);
   }
+});
+
+function elf64(interpreter) {
+  const phoff = 64, phentsize = 56, phnum = interpreter ? 2 : 1;
+  const dataOffset = phoff + phnum * phentsize;
+  const path = Buffer.from(interpreter ? `${interpreter}\0` : "", "latin1");
+  const bytes = Buffer.alloc(dataOffset + path.length);
+  bytes.writeUInt32BE(0x7f454c46, 0);
+  bytes[4] = 2;
+  bytes[5] = 1;
+  bytes[6] = 1;
+  bytes.writeUInt16LE(2, 16);
+  bytes.writeUInt16LE(62, 18);
+  bytes.writeBigUInt64LE(BigInt(phoff), 32);
+  bytes.writeUInt16LE(64, 52);
+  bytes.writeUInt16LE(phentsize, 54);
+  bytes.writeUInt16LE(phnum, 56);
+  bytes.writeUInt32LE(1, phoff);
+  if (interpreter) {
+    const header = phoff + phentsize;
+    bytes.writeUInt32LE(3, header);
+    bytes.writeBigUInt64LE(BigInt(dataOffset), header + 8);
+    bytes.writeBigUInt64LE(BigInt(path.length), header + 32);
+    path.copy(bytes, dataOffset);
+  }
+  return bytes;
+}
+
+test("ELF program headers say whether a binary needs the host's dynamic loader", () => {
+  assert.equal(elfInterpreter(elf64("/lib64/ld-linux-x86-64.so.2")), "/lib64/ld-linux-x86-64.so.2");
+  assert.equal(elfInterpreter(elf64(null)), null);
+  assert.throws(() => elfInterpreter(Buffer.from("#!/bin/sh\n")), /not an ELF/);
+  assert.throws(() => elfInterpreter(elf64("/lib/ld.so").subarray(0, 100)), /truncated/);
+});
+
+test("Linux archives refuse a Go binary linked against the build host's glibc", () => {
+  const dynamic = new Set(["reasonix-desktop", "usr/bin/reasonix-desktop"]);
+  const read = (name) => elf64(dynamic.has(name) ? "/lib64/ld-linux-x86-64.so.2" : null);
+  for (const kind of ["linux-tar", "linux-deb"]) {
+    const errors = checkStaticGoMembers(kind, read);
+    assert.equal(errors.length, 1, `${kind}: ${errors.join("; ")}`);
+    assert.match(errors[0], /reasonix-desktop is dynamically linked/);
+  }
+  const seen = [];
+  assert.deepEqual(checkStaticGoMembers("linux-deb", (name) => (seen.push(name), elf64(null))), []);
+  assert.ok(seen.includes("usr/lib/reasonix/reasonix-update-helper"));
+  assert.deepEqual(checkStaticGoMembers("linux-app-dir", () => assert.fail("app dir has no Go members")), []);
 });
