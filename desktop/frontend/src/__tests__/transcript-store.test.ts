@@ -451,18 +451,18 @@ console.log("\ntranscript store");
     selectionRevision: 1,
     bytes: text.length * 2,
   });
-  store.setMarkdown("e1", 1, parsed("a".repeat(20))); // 40 bytes
-  store.setMarkdown("e2", 1, parsed("b".repeat(20)));
-  store.setMarkdown("e3", 1, parsed("c".repeat(20)));
-  eq(store.getMarkdown("e1", 1)?.source, "a".repeat(20), "markdown cache returns stored value");
-  store.setMarkdown("e4", 1, parsed("d".repeat(20))); // 160 > 120 → evict oldest (e2: e1 was touched)
-  eq(store.getMarkdown("e2", 1), undefined, "markdown LRU evicts the least-recently-used entry");
-  ok(store.getMarkdown("e1", 1) !== undefined, "recently read markdown entry survives");
-  eq(store.getMarkdown("e1", 2), undefined, "markdown entries key on entryId + revision");
+  store.setMarkdown(1, parsed("a".repeat(20))); // 40 bytes
+  store.setMarkdown(2, parsed("b".repeat(20)));
+  store.setMarkdown(3, parsed("c".repeat(20)));
+  eq(store.getMarkdown("a".repeat(20), 1)?.source, "a".repeat(20), "markdown cache returns stored value");
+  store.setMarkdown(4, parsed("d".repeat(20))); // 160 > 120 → evict oldest (2: 1 was touched)
+  eq(store.getMarkdown("b".repeat(20), 2), undefined, "markdown LRU evicts the least-recently-used entry");
+  ok(store.getMarkdown("a".repeat(20), 1) !== undefined, "recently read markdown entry survives");
+  eq(store.getMarkdown("x".repeat(20), 1), undefined, "a revision collision with different source text is a miss");
 
-  const release = store.pinMarkdown("e1", 1);
-  store.setMarkdown("e5", 1, parsed("e".repeat(50)));
-  ok(store.getMarkdown("e1", 1) !== undefined, "active selection pins its markdown projection");
+  const release = store.pinMarkdown(1);
+  store.setMarkdown(5, parsed("e".repeat(50)));
+  ok(store.getMarkdown("a".repeat(20), 1) !== undefined, "active selection pins its markdown projection");
   release();
 }
 
