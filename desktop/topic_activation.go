@@ -213,6 +213,12 @@ func (a *App) StartTopicActivation(req TopicActivationRequest) (TopicActivationT
 		// untouched on error.
 		return TopicActivationTicket{}, err
 	}
+	// The ticket publishes the local surface before the asynchronous prune.
+	// Clear the remote selection now so ListTabs cannot reselect the old remote
+	// tab while the local controller is still becoming ready.
+	a.remoteTabMu.Lock()
+	a.remoteTabLayout.activeID = ""
+	a.remoteTabMu.Unlock()
 
 	requestID := strings.TrimSpace(req.RequestID)
 	if requestID == "" {

@@ -209,6 +209,53 @@ func TestStartTopicActivationSyncBuildAndReuseFastPath(t *testing.T) {
 	}
 }
 
+func TestStartTopicActivationReplacesRemoteSurface(t *testing.T) {
+	isolateDesktopUserDirs(t)
+	app := NewApp()
+	app.readyHook = func() {}
+	installNoopRuntimeEvents(app)
+	events := newActivationEventRecorder(app)
+	t.Cleanup(func() { app.shutdown(context.Background()) })
+
+	remoteCtx, cancelRemote := context.WithCancel(context.Background())
+	app.remoteTabMu.Lock()
+	app.remoteTabs = map[string]*remoteTab{
+		"remote": {id: "remote", ref: RemoteTabRef{HostID: "box", Workspace: "/work"}, state: "disconnected", cancel: cancelRemote},
+	}
+	app.remoteTabLayout = remoteTabLayoutState{activeID: "remote", order: []string{"remote"}, stripOrder: []string{"remote"}}
+	app.remoteTabMu.Unlock()
+
+	ticket, err := app.StartTopicActivation(TopicActivationRequest{Scope: "global", TopicID: "local-after-remote", RequestID: "local-after-remote"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Completion holds singleSurfaceMu until the ticket is returned. The local
+	// tab must already be the sole active entry during that interval.
+	if tabs := app.ListTabs(); len(tabs) == 0 {
+		t.Fatalf("tabs immediately after local ticket = %+v, want active %q", tabs, ticket.TabID)
+	} else {
+		active := ""
+		for _, tab := range tabs {
+			if tab.Active {
+				active = tab.ID
+			}
+		}
+		if active != ticket.TabID {
+			t.Fatalf("tabs immediately after local ticket = %+v, want active %q", tabs, ticket.TabID)
+		}
+	}
+	events.waitFor(t, activationEventFor(ticket.RequestID, "ready"))
+	flushActivationCompletions(app)
+	if tabs := app.ListTabs(); len(tabs) != 1 || tabs[0].ID != ticket.TabID || !tabs[0].Active {
+		t.Fatalf("tabs after local activation = %+v, want only active local %q", tabs, ticket.TabID)
+	}
+	select {
+	case <-remoteCtx.Done():
+	default:
+		t.Fatal("remote tab pump was not cancelled after switching to local")
+	}
+}
+
 // activationStubController is the minimal SessionAPI surface exercised by
 // prune/detach/attach flows around a tab with active runtime work.
 type activationStubController struct {
