@@ -21,7 +21,7 @@ func (a *App) startModelApplicationTurn(tabID, submissionID string, req control.
 	if receipt, found, err := a.knownSubmissionReceipt(tabID, req); found || err != nil {
 		return TurnStartView{TurnID: receipt.TurnID, SubmissionID: submissionID, Status: event.TurnQueued, Disposition: control.SubmitTurnStarted}, err
 	}
-	admission, ctrl, err := a.beginRuntimeTurnWithModelChoice(tabID, true, false, nil, choice, submissionID)
+	admission, ctrl, err := a.beginRuntimeTurnWithModelChoice(tabID, true, false, identifiedSubmissionCheck([]string{submissionID}), choice, submissionID)
 	if err != nil {
 		return TurnStartView{}, a.submissionAdmissionError(tabID, req, err)
 	}

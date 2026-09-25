@@ -295,6 +295,7 @@ export const en = {
   "sessionRecovery.retryFailed": "Recovery failed. Check the details and try again.",
   "sessionRecovery.details": "Details",
   "sessionRecovery.sendAfterRecovery": "Send after recovery",
+  "sessionRecovery.importBeforeSend": "Import to send",
   "sessionRecovery.contentAfterRecovery": "Session content will appear after recovery",
   "takeover.bannerButton": "Take over session",
   "takeover.title": "Take over this session",

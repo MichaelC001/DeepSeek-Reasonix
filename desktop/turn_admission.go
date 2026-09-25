@@ -60,7 +60,7 @@ func (admission *tabTurnAdmission) abort() {
 
 // beginTabTurn reserves one tab until its TurnDone fan-out completes.
 func (a *App) beginTabTurn(tabID string, reclaim bool, submissionID ...string) (*tabTurnAdmission, control.SessionAPI, error) {
-	return a.beginRuntimeTurn(tabID, reclaim, false, submissionID...)
+	return a.beginRuntimeTurnChecked(tabID, reclaim, false, identifiedSubmissionCheck(submissionID), submissionID...)
 }
 
 func (a *App) beginRuntimeTurn(tabID string, reclaim, detached bool, submissionID ...string) (*tabTurnAdmission, control.SessionAPI, error) {

@@ -286,6 +286,7 @@ export const zhTW: Record<DictKey, string> = {
   "sessionRecovery.retryFailed": "恢復失敗，請查看詳情後重試。",
   "sessionRecovery.details": "詳情",
   "sessionRecovery.sendAfterRecovery": "恢復後可傳送",
+  "sessionRecovery.importBeforeSend": "匯入後可傳送",
   "sessionRecovery.contentAfterRecovery": "恢復後顯示會話內容",
   "takeover.bannerButton": "接管會話",
   "takeover.title": "接管該會話",

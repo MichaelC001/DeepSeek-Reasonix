@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { initialState } from "../lib/useController";
 import { applyHydrateErrorState } from "../lib/hydrateErrorState";
-import { projectSessionAvailability, type SessionAvailability } from "../lib/sessionAvailability";
+import { projectSessionAvailability, submitBlockReason, type SessionAvailability } from "../lib/sessionAvailability";
 
 assert.deepEqual(projectSessionAvailability({empty:true}),{kind:"ready",source:"history"},"an empty welcome has no runtime to wait for");
 assert.equal(projectSessionAvailability({}).kind,"loading","an unresolved selected source still reports loading");
@@ -26,6 +26,13 @@ const failedLocal = applyHydrateErrorState(readyLocal, "startup", "history read 
 assert.deepEqual(projectSessionAvailability({ local: { ...failedLocal, meta: {
   ...readyLocal.meta, ready: false, historicalSource: { hostId: "local", path: "/fixture/legacy.jsonl" },
 } } }), { kind: "pending", source: "runtime" }, "unprepared history is a user choice, not a failed recovery");
+const nativeHistory = projectSessionAvailability({ local: { ...readyLocal, meta: {
+  ...readyLocal.meta, historicalSource: { hostId: "local", path: "/fixture/legacy.jsonl" },
+} } });
+assert.deepEqual(nativeHistory, { kind: "pending", source: "runtime" }, "a readable native history runtime still cannot accept sends");
+const recordKey = ((key: string) => key) as Translator;
+assert.equal(submitBlockReason(nativeHistory, recordKey), "sessionRecovery.importBeforeSend", "the disabled composer says why and what to do");
+assert.equal(submitBlockReason(projectSessionAvailability({ local: readyLocal }), recordKey), undefined);
 const noop = () => {};
 const common: TranscriptSurfaceProjectionInput = {
   hydrating: false, hydrateHistoryLoaded: undefined, hydratePlaceholderItems: undefined, hydratePlaceholderActive: false,
