@@ -83,6 +83,9 @@ async function verifyFillWidthOptions(browser, platform, context) {
     await page.goto(`http://127.0.0.1:${port}/?mock=deepseek_upgrade&bench=1&platform=${platform}`, { waitUntil: "domcontentloaded" });
     await page.locator("textarea.composer__input:not([aria-hidden=true])").waitFor();
     await page.locator('button:has(svg.lucide-settings)').last().click();
+    // UsageStatsPanel is lazy-loaded; its stylesheet must be on the page before the gallery is measured.
+    await page.locator(".settings-center__navitem:has(svg.lucide-chart-no-axes-column)").click();
+    await page.locator(".usage-stats__group > button").first().waitFor();
     await page.locator(".settings-center__navitem:has(svg.lucide-palette)").first().click();
     await page.locator(".appearance-overview__hero-actions .btn--primary").click();
     const groups = page.locator(".theme-gallery__preview-control .settings-options");
