@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -153,6 +154,23 @@ func desktopWorkspaceRoot(scope, workspaceRoot string) string {
 		return globalWorkspaceRoot()
 	}
 	return filepath.Clean(strings.TrimSpace(workspaceRoot))
+}
+
+// isGlobalWorkspacePath reports whether root is Global's directory: the one
+// derived from the data directory now, or one Global was rebound away from.
+func isGlobalWorkspacePath(global workspacestate.Workspace, root string) bool {
+	if sameDesktopPath(root, globalWorkspaceRoot()) || (global.Root != "" && sameDesktopPath(root, global.Root)) {
+		return true
+	}
+	return slices.ContainsFunc(global.FormerRoots, func(former string) bool { return sameDesktopPath(root, former) })
+}
+
+func (a *App) isGlobalWorkspacePath(ctx context.Context, root string) bool {
+	if sameDesktopPath(root, globalWorkspaceRoot()) {
+		return true
+	}
+	state, err := a.workspaceRegistry().Load(ctx)
+	return err == nil && isGlobalWorkspacePath(state.Workspaces[workspacestate.GlobalWorkspaceID], root)
 }
 
 func (a *App) workspaceRegistry() *workspacestate.Store {

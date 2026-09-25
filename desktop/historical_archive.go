@@ -76,6 +76,9 @@ func (a *App) archiveHistoricalSourceWithOperation(ctx context.Context, id strin
 	outcome := "archived"
 	if lifecycle.Lifecycle == workspacestate.Deleted {
 		outcome = "already_removed"
+		if err := retireRemovedSourceTopic(state, source); err != nil {
+			return SessionMutationResult{}, fmt.Errorf("retire removed source topic: %w", err)
+		}
 	} else if lifecycle.Lifecycle == workspacestate.Archived {
 		if _, err := a.desktopSessionService("").Query().Snapshot(ctx, ref); err != nil {
 			return SessionMutationResult{}, err

@@ -38,7 +38,7 @@ func (a *App) recoveryWorkspaceChoices(ctx context.Context, state workspacestate
 	if entry.SessionID != "" {
 		if info, err := a.desktopSessionService("").Query().Stat(ctx, session.SessionRef{HostID: localDesktopHostID, SessionID: entry.SessionID}); err == nil && info.CWD != "" {
 			for id, w := range state.Workspaces {
-				if sameDesktopPath(w.Root, info.CWD) {
+				if sameDesktopPath(w.Root, info.CWD) || (id == workspacestate.GlobalWorkspaceID && isGlobalWorkspacePath(w, info.CWD)) {
 					allowed[id] = true
 				}
 			}
@@ -329,7 +329,7 @@ func (a *App) discoverHistoricalTrash(ctx context.Context) error {
 		}
 		for _, path := range paths {
 			scope, root := "global", ""
-			if meta, ok, err := agent.LoadBranchMeta(path); err == nil && ok && meta.WorkspaceRoot != "" && !sameDesktopPath(meta.WorkspaceRoot, globalWorkspaceRoot()) {
+			if meta, ok, err := agent.LoadBranchMeta(path); err == nil && ok && meta.WorkspaceRoot != "" && !a.isGlobalWorkspacePath(ctx, meta.WorkspaceRoot) {
 				scope, root = "project", meta.WorkspaceRoot
 			}
 			// Old "deleted" entries were recoverable trash, not permanent
@@ -445,7 +445,7 @@ func (a *App) reconcileUnregisteredSessions(ctx context.Context) error {
 			continue
 		}
 		scope, root := "project", info.CWD
-		if sameDesktopPath(root, globalWorkspaceRoot()) {
+		if isGlobalWorkspacePath(state.Workspaces[workspacestate.GlobalWorkspaceID], root) {
 			scope, root = "global", ""
 		}
 		title := workspaceName(root)
@@ -610,7 +610,7 @@ func (a *App) restoreLegacyRecoveryPath(path string) error {
 		return fmt.Errorf("session is open: %s", key)
 	}
 	scope, root := "global", ""
-	if meta, ok, err := agent.LoadBranchMeta(path); err == nil && ok && meta.WorkspaceRoot != "" && !sameDesktopPath(meta.WorkspaceRoot, globalWorkspaceRoot()) {
+	if meta, ok, err := agent.LoadBranchMeta(path); err == nil && ok && meta.WorkspaceRoot != "" && !a.isGlobalWorkspacePath(a.bootContext(), meta.WorkspaceRoot) {
 		scope, root = "project", meta.WorkspaceRoot
 	}
 	if err := a.sourceRecovery(a.bootContext(), path, "legacy-trash", "historical_state_unknown", scope, root); err != nil {

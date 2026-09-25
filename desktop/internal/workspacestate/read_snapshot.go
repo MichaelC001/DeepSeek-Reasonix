@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"reasonix/internal/pathidentity"
@@ -129,6 +130,7 @@ func (r *ReadSnapshot) Generation() uint64 { return r.state.Generation }
 func (r *ReadSnapshot) WorkspaceMetadata(id string) (Workspace, bool) {
 	w, ok := r.state.Workspaces[id]
 	w.SessionIDs, w.Organization, w.extra = nil, nil, nil
+	w.FormerRoots = slices.Clone(w.FormerRoots)
 	return w, ok
 }
 

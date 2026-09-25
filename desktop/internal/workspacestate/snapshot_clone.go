@@ -22,6 +22,7 @@ func cloneSnapshot(s State) State {
 	s.Workspaces = maps.Clone(s.Workspaces)
 	for id, w := range s.Workspaces {
 		w.SessionIDs = slices.Clone(w.SessionIDs)
+		w.FormerRoots = slices.Clone(w.FormerRoots)
 		w.extra = cloneUnknownFields(w.extra)
 		if w.Organization != nil {
 			o := w.Organization.Clone()

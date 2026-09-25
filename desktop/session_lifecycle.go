@@ -341,7 +341,7 @@ func (a *App) stageArchiveSource(ctx context.Context, path string) (session.Sess
 		return session.SessionRef{}, "", err
 	}
 	scope, root := "global", ""
-	if meta.WorkspaceRoot != "" && !sameDesktopPath(meta.WorkspaceRoot, globalWorkspaceRoot()) {
+	if meta.WorkspaceRoot != "" && !a.isGlobalWorkspacePath(ctx, meta.WorkspaceRoot) {
 		scope, root = "project", meta.WorkspaceRoot
 	}
 	workspaceID, err := a.ensureDesktopWorkspace(ctx, scope, root)
@@ -381,7 +381,7 @@ func (a *App) restoreCanonicalSession(ctx context.Context, ref session.SessionRe
 			return SessionRestoreResult{}, errSessionWorkspaceConflict
 		}
 		scope, root := "project", info.CWD
-		if sameDesktopPath(root, globalWorkspaceRoot()) {
+		if a.isGlobalWorkspacePath(ctx, root) {
 			scope, root = "global", ""
 		}
 		workspaceID, ensureErr := a.ensureDesktopWorkspace(ctx, scope, root)

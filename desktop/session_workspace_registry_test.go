@@ -167,3 +167,44 @@ func TestWorkspaceRegistryRejectsSessionHeaderFromDifferentWorkspace(t *testing.
 		t.Fatalf("mismatched workspace members = %#v", workspace.SessionIDs)
 	}
 }
+
+// A portable build or REASONIX_HOME move leaves Global's stored root and every
+// global session's recorded CWD at the old data directory (#10638, #10659).
+func TestGlobalWorkspaceSurvivesMovedDataDirectory(t *testing.T) {
+	isolateDesktopUserDirs(t)
+	root := t.TempDir()
+	oldGlobal := filepath.Join(t.TempDir(), "old-home", "global-workspace")
+	app := NewApp()
+	t.Cleanup(app.closeSessionServices)
+	app.ctx = t.Context()
+	app.desktopSessions.root = filepath.Join(root, "desktop-sessions-v5", "by-id")
+	app.desktopSessions.workspaceState = workspacestate.NewStore(filepath.Join(root, "desktop", "workspace-state-v1.json"))
+	store := app.desktopSessions.workspaceState
+	if err := store.EnsureWorkspace(t.Context(), workspacestate.Workspace{ID: workspacestate.GlobalWorkspaceID, Root: oldGlobal, Visible: true}); err != nil {
+		t.Fatal(err)
+	}
+	created, err := app.desktopSessionService("").Create(t.Context(), session.CreateOptions{
+		SessionID: "moved-global", CWD: oldGlobal, Origin: session.SessionOriginNew,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AttachSession(t.Context(), "", workspacestate.GlobalWorkspaceID, created.Ref().SessionID, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	if id, err := app.ensureDesktopWorkspace(t.Context(), "global", ""); err != nil || id != workspacestate.GlobalWorkspaceID {
+		t.Fatalf("ensure global = %q, %v", id, err)
+	}
+	state, err := store.Load(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := state.Workspaces[workspacestate.GlobalWorkspaceID].Root; got != globalWorkspaceRoot() {
+		t.Fatalf("global root = %q, want %q", got, globalWorkspaceRoot())
+	}
+	owner, err := app.canonicalSessionWorkspace(t.Context(), created.Ref())
+	if err != nil || owner.ID != workspacestate.GlobalWorkspaceID {
+		t.Fatalf("session recorded under the old global root = %q, %v", owner.ID, err)
+	}
+}
