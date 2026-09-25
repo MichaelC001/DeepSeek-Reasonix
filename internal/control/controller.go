@@ -5217,12 +5217,13 @@ func (c *Controller) applyToolApprovalModeLocked(mode string) []string {
 		p.reply <- approvalReply{allow: true}
 		drained = append(drained, p.id)
 	}
-	// A permission revision change invalidates the active turn so an older
-	// approval can never authorize work under the new snapshot. Avoid the idle
-	// Cancel path: it intentionally stops an active Goal and permission
-	// selection is an independent composer axis.
+	// A change that does not widen the preset invalidates the active turn so an
+	// older approval never authorizes work the new snapshot forbids. A widening
+	// revokes nothing the turn holds, so the turn keeps running. Avoid the idle
+	// Cancel path: it stops an active Goal, and the preset is a separate axis.
+	upgrade := permissionPresetRank(mode) > permissionPresetRank(previousMode)
 	turnID, cancelled := "", false
-	if c.Running() {
+	if !upgrade && c.Running() {
 		turnID, cancelled = c.cancelTurnLocked()
 	}
 	c.promptResolveMu.Unlock()

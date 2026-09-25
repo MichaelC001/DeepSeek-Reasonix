@@ -6,7 +6,7 @@ import { test } from "node:test";
 import type { ServiceState } from "../shared/ipc.js";
 import { validateHelloResult, type HelloResult } from "./handshake.js";
 import { RestartBudget } from "./restartBudget.js";
-import { ServiceSupervisor } from "./service.js";
+import { ServiceSupervisor, ShutdownError, type ShutdownTiming } from "./service.js";
 
 const silent = { info() {}, warn() {}, error() {} };
 const tick = async (times = 4) => {
@@ -19,9 +19,11 @@ class FakeChild extends EventEmitter {
   stderr = new PassThrough();
   alive = true;
   requests: Array<{ id: number; method: string; params: unknown }> = [];
+  status: Record<string, unknown> | null = null;
+  heldShutdown: number | null = null;
   private buffered = "";
 
-  constructor(readonly generation: string, readonly behaviour: { helloError?: { code: number; message: string }; exitOnStdinEnd?: boolean;
+  constructor(readonly generation: string, readonly behaviour: { helloError?: { code: number; message: string }; exitOnStdinEnd?: boolean; holdShutdown?: boolean;
       shutdownResults?: Array<Record<string, unknown>>; },) {
     super();
     this.stdin.on("data", (chunk: Buffer) => {
@@ -57,9 +59,24 @@ class FakeChild extends EventEmitter {
     this.send({ method: "desktop/event", params: { seq: 1, generation, name, args: [{ ok: true }] }, });
   }
 
+  replyShutdown(result: Record<string, unknown>): void {
+    if (this.heldShutdown === null) throw new Error("no shutdown request is held");
+    this.send({ id: this.heldShutdown, result: { requestId: "", reason: "user_quit", retryable: false, ...result } });
+    this.heldShutdown = null;
+  }
+
   private handle(frame: { id?: number; method?: string; params?: unknown }): void {
     if (typeof frame.id !== "number" || typeof frame.method !== "string") return;
     this.requests.push({ id: frame.id, method: frame.method, params: frame.params, });
+    if (frame.method === "desktop/shutdown" && this.behaviour.holdShutdown) {
+      this.heldShutdown = frame.id;
+      return;
+    }
+    if (frame.method === "desktop/shutdownStatus" && this.status) {
+      const params = frame.params as { requestId?: string };
+      this.send({ id: frame.id, result: { requestId: params.requestId ?? "", reason: "user_quit", retryable: false, ...this.status } });
+      return;
+    }
     if (frame.method === "desktop/hello") {
       if (this.behaviour.helloError) {
         this.send({ id: frame.id, error: this.behaviour.helloError });
@@ -107,7 +124,7 @@ class FakeChild extends EventEmitter {
   }
 }
 
-function harness(options: { children?: FakeChild[]; budget?: RestartBudget; onState?(state: ServiceState): void; } = {},) {
+function harness(options: { children?: FakeChild[]; budget?: RestartBudget; onState?(state: ServiceState): void; shutdownTiming?: Partial<ShutdownTiming>; } = {},) {
   const spawned: FakeChild[] = [];
   const states: ServiceState[] = [];
   const events: string[] = [];
@@ -123,6 +140,7 @@ function harness(options: { children?: FakeChild[]; budget?: RestartBudget; onSt
       log: silent,
       budget: options.budget ?? new RestartBudget(),
       exitGraceMs: 10,
+      shutdownTiming: options.shutdownTiming,
       spawn: () => {
         const child = options.children?.[index++] ?? new FakeChild(`g-${spawned.length + 1}`, {});
         spawned.push(child);
@@ -288,6 +306,87 @@ test("shutdown status polling waits through in-progress cleanup", async () => {
     child.requests.slice(2).map((request) => request.method),
     ["desktop/shutdown", "desktop/shutdownStatus", "desktop/shutdownStatus"],
   );
+});
+
+const inProgress = (phase: string) => ({ phase, outcome: "in_progress", completed: false });
+const completed = { phase: "completed", outcome: "success", completed: true };
+const fastShutdown: ShutdownTiming = { replyMs: 40, pollMs: 5, stallMs: 150, ceilingMs: 2_000 };
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test("a shutdown reply that outlives the reply window is still a success when it arrives", async () => {
+  const child = new FakeChild("g-1", { holdShutdown: true });
+  child.status = inProgress("saving");
+  const h = harness({ children: [child], shutdownTiming: fastShutdown });
+  await h.supervisor.start();
+  const phases: string[] = [];
+  const shutdown = h.supervisor.shutdown("user_quit", (phase) => phases.push(phase));
+  await wait(60);
+  child.status = inProgress("closing");
+  await wait(80);
+  child.replyShutdown(completed);
+  child.exit(0, null);
+  await shutdown;
+  assert.equal(h.supervisor.current.phase, "exited");
+  assert.equal(h.failures.length, 0);
+  assert.ok(phases.includes("closing"), `phases: ${phases.join(",")}`);
+  assert.equal(phases.at(-1), "completed");
+});
+
+test("a late completed status ends a shutdown whose reply never arrives", async () => {
+  const child = new FakeChild("g-1", { holdShutdown: true });
+  child.status = inProgress("saving");
+  const h = harness({ children: [child], shutdownTiming: fastShutdown });
+  await h.supervisor.start();
+  const shutdown = h.supervisor.shutdown();
+  await wait(70);
+  child.status = inProgress("closing");
+  await wait(70);
+  child.status = completed;
+  await shutdown;
+  assert.equal(child.alive, false);
+  assert.equal(h.supervisor.current.phase, "exited");
+});
+
+test("a shutdown that stops advancing is reported incomplete and the service is kept", async () => {
+  const child = new FakeChild("g-1", { holdShutdown: true });
+  child.status = inProgress("closing");
+  const h = harness({ children: [child], shutdownTiming: fastShutdown });
+  await h.supervisor.start();
+  const started = Date.now();
+  await assert.rejects(h.supervisor.shutdown(), (error: unknown) => {
+    assert.ok(error instanceof ShutdownError);
+    assert.equal(error.code, "shutdown_incomplete");
+    assert.match(error.message, /closing/);
+    return true;
+  });
+  assert.ok(Date.now() - started < fastShutdown.ceilingMs, "a stall is reported before the ceiling");
+  assert.equal(child.alive, true, "an incomplete shutdown leaves the service for a retry");
+});
+
+test("a service that exits without reporting success fails the shutdown", async () => {
+  const child = new FakeChild("g-1", { holdShutdown: true });
+  child.status = inProgress("saving");
+  const h = harness({ children: [child], shutdownTiming: fastShutdown });
+  await h.supervisor.start();
+  const shutdown = h.supervisor.shutdown();
+  await wait(60);
+  child.exit(1, null);
+  await assert.rejects(shutdown, (error: unknown) => error instanceof ShutdownError && error.code === "service_exited");
+});
+
+test("a shutdown that keeps advancing still ends at the ceiling", async () => {
+  const child = new FakeChild("g-1", { holdShutdown: true });
+  const phases = ["saving", "closing"];
+  let turn = 0;
+  const flip = setInterval(() => { child.status = inProgress(phases[turn++ % 2]); }, 10);
+  child.status = inProgress("saving");
+  const h = harness({ children: [child], shutdownTiming: { ...fastShutdown, ceilingMs: 300 } });
+  await h.supervisor.start();
+  try {
+    await assert.rejects(h.supervisor.shutdown(), (error: unknown) => error instanceof ShutdownError && error.code === "shutdown_incomplete");
+  } finally {
+    clearInterval(flip);
+  }
 });
 
 test("shutdown fences a hello completion queued before shutdown", async () => {

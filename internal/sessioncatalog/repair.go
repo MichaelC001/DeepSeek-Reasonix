@@ -391,6 +391,9 @@ func (c *Catalog) applyGuardedRepairBatch(ctx context.Context, outcomes []repair
 		}
 		mutated++
 		if state == "complete" {
+			if err := projectRepairedHeads(ctx, tx, outcome.item.path, outcome.item.pathKey); err != nil {
+				return rollback(err)
+			}
 			committedDirty[queuePathKey(outcome.item.target.Path)] = outcome.item.target
 		}
 		if outcome.item.topicID != "" {

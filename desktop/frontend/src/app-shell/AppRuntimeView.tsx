@@ -38,6 +38,7 @@ import { buildAppShellClassNames, buildSessionStatusBannerProps, buildSidebarReg
 import { buildBottomRegionsProps, buildWorkspaceDockProps } from "./dockRegionBuilders";
 import { buildOverlayHostProps } from "./overlayBuilders";
 import { buildComposerSurface, buildDecisionFooterSurface, buildFooterTodo, buildFooterUndo } from "./decisionFooterBuilders";
+import { submitBlockReason } from "../lib/sessionAvailability";
 
 const WindowsWindowControls = lazy(() => import("./WindowsWindowControls").then((module) => ({ default: module.WindowsWindowControls })));
 const DockLauncher = lazy(() => import("../components/DockLauncher").then((module) => ({ default: module.DockLauncher })));
@@ -405,8 +406,7 @@ export function AppRuntimeView(props: AppRuntimeViewProps) {
                 decisionActive: Boolean(decisionSurface),
                 runtimeTransitioning: presentationTransitioning,
                 controllerReady: controllerReady && session.transcript.availability.kind === "ready",
-                submitDisabledReason: session.transcript.availability.kind !== "ready" && session.transcript.availability.source !== "runtime"
-                  ? t("sessionRecovery.sendAfterRecovery") : undefined,
+                submitDisabledReason: submitBlockReason(session.transcript.availability, t),
                 showContextWindowRing: false,
               },
               base: conversationView.composer,

@@ -103,6 +103,7 @@ func (a *App) canonicalSessionWorkspace(ctx context.Context, ref session.Session
 	if identityErr != nil {
 		return owner, identityErr
 	}
+	same = same || (owner.ID == workspacestate.GlobalWorkspaceID && isGlobalWorkspacePath(owner, info.CWD))
 	if !same {
 		return owner, errSessionWorkspaceConflict
 	}

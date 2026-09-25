@@ -2187,7 +2187,7 @@ func (a *App) tabMeta(tab *WorkspaceTab, active bool) TabMeta {
 		Goal:              currentTabGoal(tab),
 		GoalStatus:        currentTabGoalStatus(tab),
 		StartupErr:        tab.StartupErr,
-		HistoricalSource:  tab.HistoricalSource,
+		HistoricalSource:  tabHistoricalSourceLocked(tab),
 		Active:            active,
 		Cwd:               tab.WorkspaceRoot,
 		IsolatedWorktree:  floor.isolated,

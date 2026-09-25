@@ -259,6 +259,37 @@ func TestCoalesceCapabilityCannotOvertakeActiveDrainer(t *testing.T) {
 	}
 }
 
+func TestCoalesceMergesToolOutputPerTool(t *testing.T) {
+	inner := &coalesceRecordSink{}
+	c := Coalesce(inner, time.Hour)
+	c.Emit(Event{Kind: ToolProgress, Tool: Tool{ID: "a", Output: "1\n"}}) // leading edge
+	c.Emit(Event{Kind: ToolProgress, Tool: Tool{ID: "a", Output: "2\n"}})
+	c.Emit(Event{Kind: ToolProgress, Tool: Tool{ID: "a", Output: "3\n"}})
+	c.Emit(Event{Kind: ToolProgress, Tool: Tool{ID: "b", Output: "x\n"}}) // other tool: flush + buffer
+	c.Emit(Event{Kind: ToolProgress, Tool: Tool{ID: "b", Verifying: true}})
+	c.Emit(Event{Kind: ToolProgress, Tool: Tool{ID: "c", Name: SubagentProgressStatusName, Output: "running"}})
+	c.Emit(Event{Kind: ToolResult, Tool: Tool{ID: "a", Output: "done"}})
+
+	got := inner.snapshot()
+	want := []Event{
+		{Kind: ToolProgress, Tool: Tool{ID: "a", Output: "1\n"}},
+		{Kind: ToolProgress, Tool: Tool{ID: "a", Output: "2\n3\n"}},
+		{Kind: ToolProgress, Tool: Tool{ID: "b", Output: "x\n"}},
+		{Kind: ToolProgress, Tool: Tool{ID: "b", Verifying: true}},
+		{Kind: ToolProgress, Tool: Tool{ID: "c", Name: SubagentProgressStatusName, Output: "running"}},
+		{Kind: ToolResult, Tool: Tool{ID: "a", Output: "done"}},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d events, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i].Kind != want[i].Kind || got[i].Tool.ID != want[i].Tool.ID || got[i].Tool.Output != want[i].Tool.Output ||
+			got[i].Tool.Verifying != want[i].Tool.Verifying || got[i].Tool.Name != want[i].Tool.Name {
+			t.Fatalf("event %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
 func TestCoalesceNonPureDeltaPassesThrough(t *testing.T) {
 	inner := &coalesceRecordSink{}
 	c := Coalesce(inner, time.Hour)

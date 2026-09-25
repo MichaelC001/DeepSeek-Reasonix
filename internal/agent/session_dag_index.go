@@ -68,6 +68,18 @@ func ReadSessionHeadIndex(sessionPath string) (*SessionHeadIndex, error) {
 	return &idx, nil
 }
 
+// sessionHeadIndexStale reports a schema-2 log whose head index no longer
+// describes it. The listing index cannot answer for heads, so only a replay
+// that rewrites the head index repairs such a session.
+func sessionHeadIndexStale(sessionPath string) bool {
+	probe, err := probeSessionEventLog(sessionPath)
+	if err != nil || !probe.dag {
+		return false
+	}
+	idx, err := ReadSessionHeadIndex(sessionPath)
+	return err != nil || !idx.Current(sessionPath)
+}
+
 func writeSessionDAGIndex(ctx context.Context, sessionPath string, st *sessionDAGState) error {
 	indexPath := store.SessionEventIndex(sessionPath)
 	if indexPath == "" || st == nil {

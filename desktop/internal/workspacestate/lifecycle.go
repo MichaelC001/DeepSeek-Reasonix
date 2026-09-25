@@ -387,6 +387,7 @@ func commitOperation(state *State, id string, visiting map[string]bool) error {
 		}
 		entry.Status, entry.SessionID = "restored", op.SessionIDs[0]
 		state.RecoveryEntries[entry.ID] = entry
+		settleRecoveryVersion(state, entry)
 	}
 	op.Phase, op.ResultGeneration = "committed", state.Generation+1
 	state.PendingOperations[id] = op
@@ -639,6 +640,9 @@ func (s *Store) EnsureSessionTopic(ctx context.Context, id, topicID, title strin
 
 func (s *Store) RecordRecovery(ctx context.Context, entry RecoveryEntry) error {
 	return s.mutate(ctx, func(state *State) error {
+		if _, restored := restoredRecoveryVersion(*state, entry.SourceKey, entry.Fingerprint); restored {
+			return nil
+		}
 		if old, ok := state.RecoveryEntries[entry.ID]; ok {
 			if old.Status == "restored" && old.Fingerprint == entry.Fingerprint {
 				return nil
@@ -703,7 +707,10 @@ func (s *Store) ReconcileDiscoveredSession(ctx context.Context, entry RecoveryEn
 		if !found {
 			workspaceID = workspace.ID
 			if existing, exists := state.Workspaces[workspaceID]; exists && existing.Root != workspace.Root {
-				return ErrMutationConflict
+				if workspaceID != GlobalWorkspaceID || strings.TrimSpace(workspace.Root) == "" {
+					return ErrMutationConflict
+				}
+				rebindGlobalRoot(state, workspace.Root, time.Now().UTC())
 			}
 		}
 		value, ok := state.Workspaces[workspaceID]

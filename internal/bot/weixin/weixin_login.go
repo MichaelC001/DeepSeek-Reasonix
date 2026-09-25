@@ -104,8 +104,10 @@ func HasSavedAccount(accountID string) bool {
 }
 
 // validAccountID keeps an id from the upstream login response to one file name.
+// validAccountID accepts one file name. Either separator is refused on every
+// OS: the config directory can be read from a system where the other one is.
 func validAccountID(accountID string) bool {
-	return filepath.IsLocal(accountID) && filepath.Base(accountID) == accountID
+	return !strings.ContainsAny(accountID, `/\`) && filepath.IsLocal(accountID) && filepath.Base(accountID) == accountID
 }
 
 func saveAccount(accountID string, account savedAccount) error {

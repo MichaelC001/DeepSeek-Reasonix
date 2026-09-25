@@ -723,6 +723,7 @@ func (a *App) openSessionWithNavigation(ref session.SessionRef, navigationSequen
 		}
 		return HistoryPage{}, err
 	}
+	a.selectLocalSurfaceAfterOpen(navigationSequence)
 	// runtime:rebuilt intentionally has no reload semantics. SessionRef opening
 	// is navigation, so publish ready only after the exact target commits and
 	// let every frontend owner re-read its metadata and history.

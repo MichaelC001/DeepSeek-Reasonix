@@ -221,6 +221,7 @@
     "Schema": {
       "additionalProperties": false,
       "properties": {},
+      "required": [],
       "type": "object"
     }
   },

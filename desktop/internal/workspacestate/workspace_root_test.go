@@ -247,17 +247,71 @@ func TestEnsureWorkspaceRejectsDifferentRootWithoutRewritingState(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots := []string{"", filepath.Join(root, "different")}
-	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
-		roots = append(roots, strings.ToUpper(root))
-	}
-	for _, other := range roots {
-		if err := store.EnsureWorkspace(t.Context(), Workspace{ID: GlobalWorkspaceID, Root: other}); !errors.Is(err, ErrMutationConflict) {
-			t.Fatalf("different root %q: %v", other, err)
-		}
+	if err := store.EnsureWorkspace(t.Context(), Workspace{ID: GlobalWorkspaceID, Root: ""}); !errors.Is(err, ErrMutationConflict) {
+		t.Fatalf("empty root: %v", err)
 	}
 	after, err := os.ReadFile(store.Path())
 	if err != nil || string(after) != string(before) {
 		t.Fatalf("conflicting root rewrote persisted state: %v", err)
+	}
+}
+
+// Global is derived from the data directory, so a stored root elsewhere is
+// where that directory used to be. Refusing it left Global unloadable after a
+// portable build or REASONIX_HOME moved (#10638, #10659).
+func TestEnsureWorkspaceResolvedRebindsGlobalAfterDataDirectoryMoves(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old-home", "global-workspace")
+	newRoot := filepath.Join(t.TempDir(), "new-home", "global-workspace")
+	path := filepath.Join(t.TempDir(), "workspace-state-v1.json")
+	state := newState()
+	state.WorkspaceIDs = []string{GlobalWorkspaceID}
+	state.Workspaces[GlobalWorkspaceID] = Workspace{ID: GlobalWorkspaceID, Root: oldRoot, Title: "Global", Visible: true, SessionIDs: []string{"kept"}}
+	state.SessionStates = map[string]SessionState{"kept": {Lifecycle: Active}}
+	writeRegistryState(t, path, state)
+
+	id, err := NewStore(path).EnsureWorkspaceResolved(t.Context(), Workspace{ID: GlobalWorkspaceID, Root: newRoot, Title: "Global", Visible: true})
+	if err != nil || id != GlobalWorkspaceID {
+		t.Fatalf("resolved id = %q, err = %v", id, err)
+	}
+	loaded, err := NewStore(path).Load(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	global := loaded.Workspaces[GlobalWorkspaceID]
+	if global.Root != newRoot || !slices.Equal(global.FormerRoots, []string{oldRoot}) || !slices.Equal(global.SessionIDs, []string{"kept"}) {
+		t.Fatalf("global after rebind = %+v", global)
+	}
+	if len(loaded.WorkspaceIDs) != 1 {
+		t.Fatalf("rebind registered another workspace: %v", loaded.WorkspaceIDs)
+	}
+	if _, err := NewStore(path).EnsureWorkspaceResolved(t.Context(), Workspace{ID: GlobalWorkspaceID, Root: oldRoot}); err != nil {
+		t.Fatalf("moving back: %v", err)
+	}
+	if back, _ := NewStore(path).Load(t.Context()); back.Workspaces[GlobalWorkspaceID].Root != oldRoot || !slices.Equal(back.Workspaces[GlobalWorkspaceID].FormerRoots, []string{newRoot}) {
+		t.Fatalf("global after moving back = %+v", back.Workspaces[GlobalWorkspaceID])
+	}
+}
+
+func TestReconcileDiscoveredSessionRebindsGlobalAfterDataDirectoryMoves(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old-home", "global-workspace")
+	newRoot := filepath.Join(t.TempDir(), "new-home", "global-workspace")
+	path := filepath.Join(t.TempDir(), "workspace-state-v1.json")
+	state := newState()
+	state.WorkspaceIDs = []string{GlobalWorkspaceID}
+	state.Workspaces[GlobalWorkspaceID] = Workspace{ID: GlobalWorkspaceID, Root: oldRoot, Visible: true}
+	writeRegistryState(t, path, state)
+
+	err := NewStore(path).ReconcileDiscoveredSession(t.Context(),
+		RecoveryEntry{ID: "canonical-s", SourceKey: "canonical:s", SessionID: "s", Format: "canonical", Status: "pending"},
+		&Workspace{ID: GlobalWorkspaceID, Root: newRoot, Visible: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := NewStore(path).Load(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if global := loaded.Workspaces[GlobalWorkspaceID]; global.Root != newRoot || !slices.Equal(global.SessionIDs, []string{"s"}) {
+		t.Fatalf("global after discovery = %+v", global)
 	}
 }

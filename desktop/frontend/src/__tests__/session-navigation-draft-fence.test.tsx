@@ -76,6 +76,12 @@ function Probe() {
 const root = createRoot(document.getElementById("root")!);
 try {
   await act(async () => { root.render(<Probe />); });
+  await act(async () => { await commands.handleOpenTopic("project", "/workspace", "existing-topic", "session-id:existing-session"); });
+  assert.deepEqual(enqueued.at(-1)?.request, {
+    kind: "canonical-session", ref: { hostId: "local", sessionId: "existing-session" },
+  }, "sidebar session keeps its exact local identity on the canonical session path");
+  enqueued.length = 0;
+  intent = 0;
   await act(async () => {
     await commands.openBlankSession("global", "/ignored/global/root");
     await commands.openBlankSession("project", "/workspace");

@@ -8,8 +8,32 @@ import { RestartBudget } from "./restartBudget.js";
 import { RpcClient } from "./rpc.js";
 
 export const LIFECYCLE_TIMEOUT_MS = 10_000;
-const SHUTDOWN_STATUS_POLL_MS = 250;
 export const EXIT_GRACE_MS = 5_000;
+
+export interface ShutdownTiming {
+  replyMs: number; // silence on desktop/shutdown before its status is followed
+  pollMs: number;
+  stallMs: number; // longest a live shutdown may keep one phase and outcome
+  ceilingMs: number; // hard bound on the whole wait, however it advances
+}
+
+export const SHUTDOWN_TIMING: ShutdownTiming = {
+  replyMs: LIFECYCLE_TIMEOUT_MS,
+  pollMs: 250,
+  stallMs: 30_000,
+  ceilingMs: 60_000,
+};
+
+// code is the failure's identity; the message is only its display form.
+export class ShutdownError extends Error {
+  constructor(
+    readonly code: string,
+    detail: string,
+  ) {
+    super(`${code}: ${detail}`);
+    this.name = "ShutdownError";
+  }
+}
 
 export interface ServiceHandlers {
   hello(client: RpcClient): Promise<HelloResult>;
@@ -32,6 +56,7 @@ export interface ServiceOptions {
   budget?: RestartBudget;
   now?: () => number;
   exitGraceMs?: number;
+  shutdownTiming?: Partial<ShutdownTiming>;
 }
 
 interface Session {
@@ -81,6 +106,15 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([promise, new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), ms)))]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export class ServiceSupervisor {
   private session: Session | null = null;
   private state: ServiceState = { phase: "starting", generation: "" };
@@ -95,6 +129,7 @@ export class ServiceSupervisor {
   private readonly spawnFn: SpawnFn;
   private readonly now: () => number;
   private readonly exitGraceMs: number;
+  private readonly shutdownTiming: ShutdownTiming;
 
   constructor(
     private readonly options: ServiceOptions,
@@ -104,6 +139,7 @@ export class ServiceSupervisor {
     this.spawnFn = options.spawn ?? ((command, args, spawnOptions) => nodeSpawn(command, args, spawnOptions));
     this.now = options.now ?? (() => Date.now());
     this.exitGraceMs = options.exitGraceMs ?? EXIT_GRACE_MS;
+    this.shutdownTiming = { ...SHUTDOWN_TIMING, ...options.shutdownTiming };
   }
 
   get current(): ServiceState {
@@ -201,57 +237,74 @@ export class ServiceSupervisor {
     }
     session.expectExit = true;
     if (!this.shutdownRequestId) this.shutdownRequestId = randomUUID();
-    let result: ShutdownResult | null = null;
-    try {
-      result = shutdownResult(
-        await session.client.request(
-          "desktop/shutdown",
-          {
-            requestId: this.shutdownRequestId,
-            reason,
-          },
-          LIFECYCLE_TIMEOUT_MS,
-        ),
-      );
-    } catch (error) {
-      this.options.log.warn(`desktop/shutdown result unknown: ${errorText(error)}; querying status`);
-      result = shutdownResult(
-        await session.client.request(
-          "desktop/shutdownStatus",
-          {
-            requestId: this.shutdownRequestId,
-          },
-          LIFECYCLE_TIMEOUT_MS,
-        ),
-      );
-    }
-    const deadline = Date.now() + LIFECYCLE_TIMEOUT_MS;
-    onProgress?.(result.phase);
-    while (!result.completed && result.outcome === "in_progress" && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, SHUTDOWN_STATUS_POLL_MS));
-      result = shutdownResult(
-        await session.client.request(
-          "desktop/shutdownStatus",
-          {
-            requestId: this.shutdownRequestId,
-          },
-          LIFECYCLE_TIMEOUT_MS,
-        ),
-      );
-      onProgress?.(result.phase);
-    }
+    const result = await this.awaitShutdown(session, reason, onProgress);
     if (result.outcome === "failed") {
-      throw new Error(`${result.errorCode ?? "shutdown_failed"}: ${result.error ?? "desktop shutdown failed"}`);
+      throw new ShutdownError(result.errorCode ?? "shutdown_failed", result.error ?? "desktop shutdown failed");
     }
     if (!result.completed || result.outcome !== "success") {
-      throw new Error(
-        `${result.errorCode ?? "shutdown_incomplete"}: ${result.error ?? `desktop shutdown stopped in ${result.phase}`}`,
-      );
+      throw new ShutdownError(result.errorCode ?? "shutdown_incomplete", result.error ?? `desktop shutdown stopped in ${result.phase}`);
     }
     // The service closes itself only after the completed result has reached the
     // shell. stdin/kill are now a post-completion process-exit fallback.
     await this.terminate(session);
     this.setState({ phase: "exited", generation: "" });
+  }
+
+  // The shutdown reply stays awaited for the whole wait: a completed result that
+  // arrives after replyMs is the service's verdict, not an orphan. Status polls
+  // only decide whether the shutdown is still live and advancing meanwhile.
+  private async awaitShutdown(
+    session: Session,
+    reason: "user_quit" | "update_restart" | "system_signal",
+    onProgress?: (phase: ShutdownPhase) => void,
+  ): Promise<ShutdownResult> {
+    const timing = this.shutdownTiming;
+    const requestId = this.shutdownRequestId;
+    const startedAt = this.now();
+    const reply = session.client
+      .request("desktop/shutdown", { requestId, reason }, timing.ceilingMs)
+      .then((value) => ({ result: shutdownResult(value) }))
+      .catch((error: unknown) => ({ error }));
+    const first = await within(reply, timing.replyMs);
+    const unanswered = new Promise<never>(() => undefined);
+    const answer = first ? unanswered : reply.then((settled) => ("result" in settled ? settled.result : unanswered));
+    let result = null as ShutdownResult | null;
+    let advancedAt = startedAt;
+    const observe = (next: ShutdownResult) => {
+      if (!result || next.phase !== result.phase || next.outcome !== result.outcome) {
+        advancedAt = this.now();
+        onProgress?.(next.phase);
+      }
+      result = next;
+    };
+    if (first && "result" in first) observe(first.result);
+    else {
+      const why = first ? errorText(first.error) : `no reply after ${timing.replyMs} ms`;
+      this.options.log.warn(`desktop/shutdown result unknown: ${why}; following status`);
+    }
+    for (;;) {
+      if (result && (result.completed || result.outcome !== "in_progress")) return result;
+      const phase = result?.phase ?? "unknown";
+      if (this.now() - startedAt >= timing.ceilingMs) {
+        throw new ShutdownError("shutdown_incomplete", `desktop shutdown did not complete within ${timing.ceilingMs} ms; last phase ${phase}`);
+      }
+      if (this.now() - advancedAt >= timing.stallMs) {
+        throw new ShutdownError("shutdown_incomplete", `desktop shutdown stopped in ${phase}`);
+      }
+      const late = await within(answer, timing.pollMs);
+      if (late) {
+        observe(late);
+        continue;
+      }
+      if (!session.alive) {
+        throw new ShutdownError("service_exited", `desktop service exited during shutdown in phase ${phase}`);
+      }
+      try {
+        observe(shutdownResult(await session.client.request("desktop/shutdownStatus", { requestId }, timing.replyMs)));
+      } catch (error) {
+        if (session.alive) this.options.log.warn(`desktop/shutdownStatus unanswered: ${errorText(error)}`);
+      }
+    }
   }
 
   private live(): Session {

@@ -169,7 +169,10 @@ assert.equal([...document.querySelectorAll<HTMLButtonElement>('.composer-workspa
 const graphAction = [...document.querySelectorAll('.composer-workspace-menu--branches [role="menuitem"]')].find((item) => item.textContent?.includes("Git graph"));
 await click(graphAction ?? null);
 assert.equal(calls.history, 1);
-assert(document.querySelector('[role="dialog"][aria-labelledby="composer-git-graph-title"]'));
+const graphDialog = document.querySelector('[role="dialog"][aria-labelledby="composer-git-graph-title"]');
+assert(graphDialog);
+assert.ok(graphDialog.closest(".modal-backdrop")?.parentElement === document.body, "the Git graph escapes the composer frame's isolated stacking context");
+assert.ok(!rootElement.contains(graphDialog), "the Git graph is not painted inside the composer tree");
 assert(document.body.textContent?.includes("Ship workspace context"));
 assert(document.body.textContent?.includes("abcdef1"));
 await click(document.querySelector('.composer-git-graph__actions button[aria-label="Close"]'));

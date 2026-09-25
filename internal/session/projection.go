@@ -200,8 +200,9 @@ func projectLegacyImport(projection *Projection, commit Commit, ev Event) error 
 	if err := strictPayload(ev.Payload, &body); err != nil || body.Messages == nil {
 		return damagedPayload(ev, err)
 	}
-	projection.Messages = append([]provider.Message{}, body.Messages...)
-	projection.ModelMessages = append([]provider.Message{}, provider.ModelMessages(body.Messages)...)
+	messages := firstMessageOccurrences(body.Messages)
+	projection.Messages = append([]provider.Message{}, messages...)
+	projection.ModelMessages = append([]provider.Message{}, provider.ModelMessages(messages)...)
 	projection.GoalState = cloneRaw(body.Goal)
 	projection.ModelRef = strings.TrimSpace(body.ModelRef)
 	projection.ModelIdentity = strings.TrimSpace(body.ModelIdentity)
@@ -216,7 +217,7 @@ func projectMessageComplete(projection *Projection, commit Commit, ev Event) err
 		return damagedPayload(ev, err)
 	}
 	if projectionMessageIndex(projection.Messages, body.Message.ID) >= 0 {
-		return damagedPayload(ev, fmt.Errorf("duplicate stable message id %q", body.Message.ID))
+		return damagedPayload(ev, fmt.Errorf("%w %q", ErrDuplicateMessageID, body.Message.ID))
 	}
 	projection.Messages = append(projection.Messages, *body.Message)
 	projection.ModelMessages = append(projection.ModelMessages, provider.ModelMessages([]provider.Message{*body.Message})...)
@@ -314,8 +315,9 @@ func projectHistoryReplace(projection *Projection, commit Commit, ev Event) erro
 	if err := strictPayload(ev.Payload, &body); err != nil || body.Messages == nil {
 		return damagedPayload(ev, err)
 	}
-	projection.Messages = append([]provider.Message(nil), body.Messages...)
-	projection.ModelMessages = append([]provider.Message(nil), provider.ModelMessages(body.Messages)...)
+	messages := firstMessageOccurrences(body.Messages)
+	projection.Messages = append([]provider.Message(nil), messages...)
+	projection.ModelMessages = append([]provider.Message(nil), provider.ModelMessages(messages)...)
 	return nil
 }
 

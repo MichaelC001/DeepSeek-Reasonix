@@ -2,6 +2,8 @@ package sessioncatalog
 
 import (
 	"context"
+
+	"reasonix/internal/projectiondb"
 )
 
 func (c *Catalog) Close(ctx context.Context) error {
@@ -16,6 +18,7 @@ func (c *Catalog) Close(ctx context.Context) error {
 		go func() {
 			c.closeReadLeases()
 			c.workers.Wait()
+			projectiondb.CheckpointBeforeClose(context.Background(), c.db)
 			c.closeErr = c.db.Close()
 			c.statusMu.Lock()
 			c.status.State = StateClosed
