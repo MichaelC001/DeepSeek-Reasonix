@@ -1,5 +1,6 @@
 import { ErrorMessage } from "./ErrorMessage";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Cloud, Folder, FolderOpen, GitBranch, GitGraph, MessageCircle, Plus, RefreshCw, Search, X } from "lucide-react";
 import { asArray } from "../lib/array";
 import { app, onProjectTreeChanged } from "../lib/bridge";
@@ -120,7 +121,9 @@ function ComposerGitGraphDialog({
     };
   }, [load, onClose, restoreFocusRef]);
 
-  return (
+  // The composer frame is an isolated stacking context, so an in-place
+  // backdrop would paint under the workspace dock.
+  return createPortal(
     <div className="modal-backdrop composer-git-graph-backdrop" data-app-overlay="" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
@@ -159,7 +162,8 @@ function ComposerGitGraphDialog({
           ))}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
