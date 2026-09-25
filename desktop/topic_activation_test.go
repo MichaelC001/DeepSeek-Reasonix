@@ -231,7 +231,7 @@ func TestStartTopicActivationReplacesRemoteSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Keep phase 2 blocked so phase 1 alone must select the local tab.
+	// The tab build stays held: the local tab must be selected without it.
 	gate.waitEntered(t, ticket.TabID)
 	if tabs := app.ListTabs(); len(tabs) == 0 {
 		t.Fatalf("tabs immediately after local ticket = %+v, want active %q", tabs, ticket.TabID)

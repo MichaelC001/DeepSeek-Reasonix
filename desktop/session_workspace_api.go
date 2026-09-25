@@ -723,18 +723,7 @@ func (a *App) openSessionWithNavigation(ref session.SessionRef, navigationSequen
 		}
 		return HistoryPage{}, err
 	}
-	// OpenSession is also used by history and new-session navigation. Once the
-	// local binding succeeds, its tab must be visible even if a remote tab was
-	// selected before the request. Serialize with direct tab clicks so a newer
-	// selection cannot be cleared by this completion.
-	a.tabSelectionMu.Lock()
-	if a.desktopSessions.navigationSeq.Load() == navigationSequence {
-		a.remoteTabMu.Lock()
-		a.remoteTabLayout.activeID = ""
-		a.remoteTabMu.Unlock()
-		a.queueCurrentTabLayout()
-	}
-	a.tabSelectionMu.Unlock()
+	a.selectLocalSurfaceAfterOpen(navigationSequence)
 	// runtime:rebuilt intentionally has no reload semantics. SessionRef opening
 	// is navigation, so publish ready only after the exact target commits and
 	// let every frontend owner re-read its metadata and history.
