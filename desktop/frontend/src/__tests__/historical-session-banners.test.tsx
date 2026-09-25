@@ -18,6 +18,7 @@ let polledPreparation: SessionPreparationView | undefined;
 let navigationEpoch = 0;
 let cancelled = 0;
 const opened: string[] = [];
+const preparedSelectors: unknown[] = [];
 const source = { hostId: "local", sourceKey: "legacy", path: "/fixture/legacy.jsonl" };
 const host = installDesktopHostStub({
   CheckHistoricalSourceUpdate: async () => ({ sourceKey: "legacy", status: "available", version: "v2", source, retryable: false }),
@@ -29,6 +30,11 @@ const host = installDesktopHostStub({
   GetSessionPreparation: async () => {
     if (polledPreparation) return polledPreparation;
     throw new Error("terminal preparation must not poll");
+  },
+  PrepareSession: async (selector: unknown) => {
+    preparedSelectors.push(selector);
+    return { operationId: "prepare-source", sourceKey: "legacy", status: "ready", revision: 8,
+      target: { hostId: "local", sessionId: "imported-source" }, retryable: false };
   },
   CancelSessionPreparation: async (operationId: string) => { cancelled++; return cancellation ? cancellation.promise : { operationId, sourceKey: "legacy", status: "cancelled", revision: 3, retryable: true }; },
 });
@@ -117,10 +123,12 @@ await act(async () => root.render(<LocaleProvider><HistoricalSessionBanners
   tab={{ ...baseProps.tab, sessionId: undefined, ready: false, historicalSource: source }}
   navigate={async intent => { pendingIntents.push(intent); }}
 /></LocaleProvider>));
-assert.deepEqual(pendingIntents, [], "restoring a legacy tab never starts preparation automatically");
+assert.deepEqual(preparedSelectors, [], "restoring a legacy tab never starts preparation automatically");
+assert.ok(document.body.textContent?.includes("Import this conversation to keep sending messages"), "the banner states why sending waits");
 await act(async () => document.getElementById("reasonix-prepare-restored-session")!.click());
-assert.equal(pendingIntents.length, 1);
-assert.equal((pendingIntents[0] as { kind: string }).kind, "resume-session", "explicit preparation uses the shared navigation owner");
+assert.deepEqual(preparedSelectors, [{ source }], "the action prepares the source instead of reopening it in place");
+assert.deepEqual(pendingIntents, [{ kind: "canonical-session", ref: { hostId: "local", sessionId: "imported-source" } }],
+  "a prepared source opens as its canonical session");
 const [canonicalTab] = seedActiveTabMetaList([{ ...baseProps.tab, historicalSource: source }], baseProps.tab);
 assert.equal(canonicalTab.historicalSource, undefined, "canonical metadata omission clears the old preparation state");
 await act(async () => root.render(<LocaleProvider><HistoricalSessionBanners {...baseProps} tab={canonicalTab} /></LocaleProvider>));

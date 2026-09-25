@@ -18,6 +18,7 @@ func (a *App) metaForTab(tabID string) Meta {
 		tab := a.tabByIDLocked(tabID)
 		snap := snapshotTabRuntimeLocked(tab)
 		runtimeView := a.sessionRuntimeViewLocked(tab)
+		historical := tabHistoricalSourceLocked(tab)
 		a.mu.RUnlock()
 		if tab == nil {
 			meta := Meta{EventChannel: eventChannel}
@@ -71,7 +72,7 @@ func (a *App) metaForTab(tabID string) Meta {
 		meta := Meta{
 			Label: snap.label, Ready: runtimeView.Phase == sessionRuntimeReady && snap.ctrl != nil,
 			Runtime: runtimeView, StartupErr: snap.startupErr, EventChannel: eventChannel,
-			HistoricalSource: snap.historicalSource,
+			HistoricalSource: historical,
 			SessionPath:      sessionPath, SessionID: sessionID, Session: sessionRef,
 			SessionRevision: sessionRevision, SessionDigest: sessionDigest,
 			SessionGeneration: snap.sessionGeneration, RuntimeStateSnapshot: runtimeStateSnapshot,

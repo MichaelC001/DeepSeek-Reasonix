@@ -52,6 +52,10 @@ type SubmissionAttachment struct {
 // the caller must query the receipt before deciding whether a retry may run.
 var ErrSubmissionNotAccepted = errors.New("submission not accepted")
 
+// ErrSubmissionIdentityUnavailable marks a runtime with no durable store to
+// record an identified submission in, such as a native legacy transcript.
+var ErrSubmissionIdentityUnavailable = errors.New("durable submission identity unavailable")
+
 type submissionIdentityState struct {
 	mu        sync.Mutex
 	pending   atomic.Pointer[pendingSubmissionAdmission]
@@ -279,7 +283,7 @@ func (c *Controller) acceptPreparedSubmission(ctx context.Context, candidate *Pr
 	store := c.sessionEventStore()
 	if req.ID != "" {
 		if store == nil {
-			return session.SubmissionReceipt{}, errors.Join(ErrSubmissionNotAccepted, errors.New("durable submission identity unavailable"))
+			return session.SubmissionReceipt{}, errors.Join(ErrSubmissionNotAccepted, ErrSubmissionIdentityUnavailable)
 		}
 		if c.Running() {
 			return session.SubmissionReceipt{}, errors.Join(ErrSubmissionNotAccepted, ErrTurnRunning)

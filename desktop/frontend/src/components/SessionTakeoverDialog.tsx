@@ -146,7 +146,9 @@ export function HistoricalSessionBanners({ tab, navigate, captureNavigation }: H
   const cancellingOperationRef = useRef("");
   const activeHostId = activeRef?.hostId ?? "";
   const activeSessionId = activeRef?.sessionId ?? "";
-  const activeKey = activeSessionId ? `${activeHostId}:${activeSessionId}` : "";
+  const historicalSource = tab?.historicalSource;
+  const activeKey = activeSessionId ? `${activeHostId}:${activeSessionId}`
+    : historicalSource ? `source:${tab?.id}:${historicalSource.sourceKey || historicalSource.path}` : "";
   const activeKeyRef = useRef(activeKey);
   activeKeyRef.current = activeKey;
   const mounted = useRef(true);
@@ -174,7 +176,7 @@ export function HistoricalSessionBanners({ tab, navigate, captureNavigation }: H
     };
     void run().catch(() => {});
     return () => { current = false; };
-  }, [activeHostId, activeSessionId]);
+  }, [activeHostId, activeSessionId, activeKey]);
 
   const dismissUpdate = () => {
     if (update?.version) {
@@ -182,8 +184,17 @@ export function HistoricalSessionBanners({ tab, navigate, captureNavigation }: H
     }
     setUpdate(null);
   };
-  const importUpdate = async () => {
-    if (busy || !update?.source || !update.version || !app.PrepareHistoricalSourceVersion || !app.GetSessionPreparation) return;
+  const importUpdate = () => {
+    if (!update?.source || !update.version || !app.PrepareHistoricalSourceVersion) return;
+    const { source, version } = update;
+    return runPreparation(() => app.PrepareHistoricalSourceVersion!(source, version));
+  };
+  const importSource = () => {
+    if (!historicalSource || !app.PrepareSession) return;
+    return runPreparation(() => app.PrepareSession!({ source: historicalSource }));
+  };
+  const runPreparation = async (start: () => Promise<SessionPreparationView>) => {
+    if (busy || !app.GetSessionPreparation) return;
     const expectedActive = activeKey;
     const operation = ++updateOperation.current;
     const navigationCurrent = captureNavigation?.() ?? (() => activeKeyRef.current === expectedActive);
@@ -191,7 +202,7 @@ export function HistoricalSessionBanners({ tab, navigate, captureNavigation }: H
     setBusy(true);
     setUpdateError("");
     try {
-      let view: SessionPreparationView = await app.PrepareHistoricalSourceVersion(update.source, update.version);
+      let view = await start();
       while (current() && !terminalPreparation.has(view.status)) {
         await new Promise(resolve => setTimeout(resolve, 300));
         if (!current()) return;
@@ -233,14 +244,11 @@ export function HistoricalSessionBanners({ tab, navigate, captureNavigation }: H
       {!waiting && preparation.retryable && <button type="button" className="btn btn--small" onClick={() => void navigate({ kind: "resume-session", session: preparation.session })}>{t("common.retry")}</button>}
     </div>;
   }
-  if (tab?.historicalSource) return <div className="banner banner--warning banner--actionable" role="status">
-    <span className="banner__msg">{tab.topicTitle || m("historicalTitle")} · {m("historicalAvailable")}</span>
-    <span className="banner__hint">{m("historicalImportDescription")}</span>
+  if (historicalSource) return <div className={`banner ${updateError ? "banner--error" : "banner--warning"} banner--actionable`} role={updateError ? "alert" : "status"}>
+    <span className="banner__msg">{tab?.topicTitle || m("historicalTitle")} · {m("historicalAvailable")}</span>
+    <span className="banner__hint">{updateError ? <ErrorMessage error={updateError} /> : m(busy ? "historicalImporting" : "historicalImportToSend")}</span>
     <span className="banner__spacer" />
-    <button id="reasonix-prepare-restored-session" type="button" className="btn btn--small" onClick={() => void navigate({ kind: "resume-session", session: {
-      source: tab.historicalSource, path: tab.historicalSource!.path, scope: tab.scope, workspaceRoot: tab.workspaceRoot,
-      topicId: tab.topicId, title: tab.topicTitle, preview: "", turns: 0, turnsState: "unknown", createdAt: 0, lastActivityAt: 0, modTime: 0, current: true, open: true,
-    } })}>{m("historicalImportOpen")}</button>
+    <button id="reasonix-prepare-restored-session" type="button" className="btn btn--small" disabled={busy} onClick={() => void importSource()}>{m("historicalImportOpen")}</button>
   </div>;
   if (!update) return null;
   return <div className={`banner ${updateError ? "banner--error" : "banner--warning"} banner--actionable`} role={updateError ? "alert" : "status"}>

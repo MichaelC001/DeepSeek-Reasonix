@@ -1,3 +1,4 @@
+import type { Translator } from "./i18n";
 import type { State } from "./useController";
 import type { RemoteSessionApi } from "./useRemoteSession";
 
@@ -29,4 +30,11 @@ export function projectSessionAvailability(input: { local?: LocalSession; remote
   const ready = local?.meta?.ready === true && !local.backendActivationPending
     && (!local.meta.runtime || local.meta.runtime.phase === "ready");
   return { kind: ready ? "ready" : "loading", source: "runtime" };
+}
+
+/** The reason a disabled composer states, or none when readiness alone explains it. */
+export function submitBlockReason(availability: SessionAvailability, t: Translator): string | undefined {
+  if (availability.kind === "pending") return t("sessionRecovery.importBeforeSend");
+  if (availability.kind !== "ready" && availability.source !== "runtime") return t("sessionRecovery.sendAfterRecovery");
+  return undefined;
 }

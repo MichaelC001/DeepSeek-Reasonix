@@ -296,6 +296,7 @@ export const zh: Record<DictKey, string> = {
   "sessionRecovery.retryFailed": "恢复失败，请查看详情后重试。",
   "sessionRecovery.details": "详情",
   "sessionRecovery.sendAfterRecovery": "恢复后可发送",
+  "sessionRecovery.importBeforeSend": "导入后可发送",
   "sessionRecovery.contentAfterRecovery": "恢复后显示会话内容",
   "takeover.bannerButton": "接管会话",
   "takeover.title": "接管该会话",
