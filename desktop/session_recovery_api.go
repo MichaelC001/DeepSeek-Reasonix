@@ -275,8 +275,15 @@ func (a *App) restoreRecoveryEntryInWorkspace(id, operationID, workspaceID strin
 	if err != nil {
 		return SessionRestoreResult{}, err
 	}
-	if entry.Fingerprint != "" && entry.Fingerprint != fingerprint {
-		return SessionRestoreResult{}, errors.New("historical source changed; rescan before restoring")
+	if entry.Fingerprint != fingerprint {
+		rebased, err := a.workspaceRegistry().RebaseRecovery(ctx, id, fingerprint)
+		if err != nil {
+			return SessionRestoreResult{}, err
+		}
+		if rebased.SessionID != "" {
+			return a.restoreCanonicalSession(ctx, session.SessionRef{HostID: localDesktopHostID, SessionID: rebased.SessionID}, operationID, id)
+		}
+		entry.Fingerprint = rebased.Fingerprint
 	}
 	workspaceID, err = a.ensureDesktopWorkspace(ctx, entry.Scope, entry.WorkspaceRoot)
 	if err != nil {
