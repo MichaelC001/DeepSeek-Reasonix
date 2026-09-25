@@ -235,6 +235,13 @@ func (s *Store) EnsureWorkspaceResolved(ctx context.Context, workspace Workspace
 			if current.Root == workspace.Root || (current.Root == "" && workspace.Root == "") {
 				return revalidateCandidate()
 			}
+			if workspace.ID == GlobalWorkspaceID && candidate.Key != "" {
+				if err := revalidateCandidate(); err != nil {
+					return err
+				}
+				rebindGlobalRoot(state, workspace.Root, now)
+				return nil
+			}
 			if workspace.ID == GlobalWorkspaceID || candidate.Key == "" {
 				return ErrMutationConflict
 			}
@@ -264,6 +271,19 @@ func (s *Store) EnsureWorkspaceResolved(ctx context.Context, workspace Workspace
 		return nil
 	})
 	return resolvedID, err
+}
+
+// rebindGlobalRoot moves global to root. Global is a singleton derived from the
+// state root, so a different stored root is where the data directory used to
+// be, not a second workspace; it is kept so sessions recorded there stay global.
+func rebindGlobalRoot(state *State, root string, now time.Time) {
+	w := state.Workspaces[GlobalWorkspaceID]
+	former := slices.DeleteFunc(slices.Clone(w.FormerRoots), func(r string) bool { return r == root || r == w.Root })
+	if w.Root != "" {
+		former = append(former, w.Root)
+	}
+	w.Root, w.FormerRoots, w.UpdatedAt = root, former, now
+	state.Workspaces[GlobalWorkspaceID] = w
 }
 
 func versionedWorkspaceID(identityKey string) string {

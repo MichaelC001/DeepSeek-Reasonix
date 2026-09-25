@@ -34,6 +34,7 @@ type Workspace struct {
 	Organization *Organization `json:"organization,omitempty"`
 	ID           string        `json:"id"`
 	Root         string        `json:"root"`
+	FormerRoots  []string      `json:"formerRoots,omitempty"` // global only: roots it was rebound away from
 	Title        string        `json:"title"`
 	SessionIDs   []string      `json:"sessionIds"`
 	Visible      bool          `json:"visible"`
@@ -663,7 +664,7 @@ func (w *Workspace) UnmarshalJSON(body []byte) error {
 	if err := json.Unmarshal(body, &fields); err != nil {
 		return err
 	}
-	for _, key := range []string{"id", "root", "title", "sessionIds", "visible", "createdAt", "updatedAt", "organization"} {
+	for _, key := range []string{"id", "root", "title", "sessionIds", "visible", "createdAt", "updatedAt", "organization", "formerRoots"} {
 		delete(fields, key)
 	}
 	*w = Workspace(decoded)

@@ -703,7 +703,10 @@ func (s *Store) ReconcileDiscoveredSession(ctx context.Context, entry RecoveryEn
 		if !found {
 			workspaceID = workspace.ID
 			if existing, exists := state.Workspaces[workspaceID]; exists && existing.Root != workspace.Root {
-				return ErrMutationConflict
+				if workspaceID != GlobalWorkspaceID || strings.TrimSpace(workspace.Root) == "" {
+					return ErrMutationConflict
+				}
+				rebindGlobalRoot(state, workspace.Root, time.Now().UTC())
 			}
 		}
 		value, ok := state.Workspaces[workspaceID]
