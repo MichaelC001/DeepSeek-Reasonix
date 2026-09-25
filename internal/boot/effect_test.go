@@ -6,6 +6,7 @@ package boot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -231,5 +232,24 @@ model = "x"
 	}
 	if rec.roundCount() == 0 {
 		t.Fatal("no round reached the provider; the run never started")
+	}
+}
+
+// TestEffectEveryProviderToolDeclaresRequiredArray holds the root schema shape
+// strict upstreams validate: relays re-serialize an omitted required as null.
+func TestEffectEveryProviderToolDeclaresRequiredArray(t *testing.T) {
+	reqs := effectRun(t, "boot-effect-required", "", ablation.Set{})
+	if len(reqs[0].Tools) == 0 {
+		t.Fatal("no tools reached the provider request")
+	}
+	for _, schema := range reqs[0].Tools {
+		var root map[string]json.RawMessage
+		if err := json.Unmarshal(schema.Parameters, &root); err != nil {
+			t.Fatalf("%s: parameters are not an object: %v", schema.Name, err)
+		}
+		var required []string
+		if raw, ok := root["required"]; !ok || string(raw) == "null" || json.Unmarshal(raw, &required) != nil {
+			t.Errorf("%s: parameters lack a required array: %s", schema.Name, schema.Parameters)
+		}
 	}
 }

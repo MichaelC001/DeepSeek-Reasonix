@@ -443,7 +443,7 @@ func TestClientListToolsQuarantinesMalformedSchema(t *testing.T) {
 	if len(tools) != 1 || tools[0].Name() != "mcp__yakit__echo" {
 		t.Fatalf("tools = %v, want only mcp__yakit__echo", names(tools))
 	}
-	if got := string(tools[0].Schema()); got != `{"properties":{"msg":{"type":"string"}},"type":"object"}` {
+	if got := string(tools[0].Schema()); got != `{"properties":{"msg":{"type":"string"}},"required":[],"type":"object"}` {
 		t.Fatalf("valid sibling schema changed: %s", got)
 	}
 	if len(c.toolCatalog.infos) != 2 {
@@ -478,7 +478,7 @@ func TestClientListToolsQuarantinesNonObjectRootSchemas(t *testing.T) {
 	if len(tools) != 2 || tools[0].Name() != "mcp__srv__echo" || tools[1].Name() != "mcp__srv__no_args" {
 		t.Fatalf("tools = %v, want echo and normalized no_args", names(tools))
 	}
-	if got := string(tools[1].Schema()); got != `{"properties":{},"type":"object"}` {
+	if got := string(tools[1].Schema()); got != `{"properties":{},"required":[],"type":"object"}` {
 		t.Fatalf("no_args schema = %s, want normalized empty object schema", got)
 	}
 	if len(c.toolCatalog.infos) != 4 {
@@ -514,7 +514,7 @@ func TestClientListToolsValidatesAfterCompatibilityNormalization(t *testing.T) {
 	if len(tools) != 1 {
 		t.Fatalf("tools = %v, want normalized legacy tool", names(tools))
 	}
-	if got := string(tools[0].Schema()); got != `{"properties":{"query":{"type":"string"}},"type":"object"}` {
+	if got := string(tools[0].Schema()); got != `{"properties":{"query":{"type":"string"}},"required":[],"type":"object"}` {
 		t.Fatalf("normalized schema = %s", got)
 	}
 }
