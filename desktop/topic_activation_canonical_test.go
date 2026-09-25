@@ -34,6 +34,53 @@ func canonicalTopicHistoryReady(t *testing.T, app *App, tabID string) session.Hi
 	}
 }
 
+func TestCanonicalSidebarActivationReplacesRemoteSurface(t *testing.T) {
+	app, source, target, root, _ := canonicalWorkspaceOpenFixture(t)
+	app.readyHook = func() {}
+	installNoopRuntimeEvents(app, source.sink)
+	events := newActivationEventRecorder(app)
+	t.Cleanup(func() { app.shutdown(context.Background()) })
+
+	remoteCtx, cancelRemote := context.WithCancel(context.Background())
+	app.remoteTabMu.Lock()
+	app.remoteTabs = map[string]*remoteTab{
+		"remote": {id: "remote", ref: RemoteTabRef{HostID: "box", Workspace: "/work"}, state: "ready", cancel: cancelRemote},
+	}
+	app.remoteTabLayout = remoteTabLayoutState{activeID: "remote", order: []string{"remote"}, stripOrder: []string{"remote"}}
+	app.remoteTabMu.Unlock()
+
+	ref := target.Ref()
+	ticket, err := app.StartTopicActivation(TopicActivationRequest{
+		Selector: &SessionSelector{Ref: &ref}, Scope: "project", WorkspaceRoot: root,
+		TopicID: "existing-topic", SessionPath: sessionRoute(ref.SessionID), RequestID: "sidebar-local",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ticket.Meta.SessionID != ref.SessionID || ticket.Meta.WorkspaceRoot != root {
+		t.Fatalf("selected local session = %+v, want %s in %s", ticket.Meta, ref.SessionID, root)
+	}
+	if tabs := app.ListTabs(); len(tabs) == 0 {
+		t.Fatal("local tab disappeared after canonical sidebar activation")
+	} else {
+		for _, tab := range tabs {
+			if tab.Active != (tab.ID == ticket.TabID) {
+				t.Fatalf("tab activity after canonical sidebar activation = %+v", tabs)
+			}
+		}
+	}
+	events.waitFor(t, activationEventFor(ticket.RequestID, "ready"))
+	flushActivationCompletions(app)
+	if tabs := app.ListTabs(); len(tabs) != 1 || tabs[0].ID != ticket.TabID || !tabs[0].Active {
+		t.Fatalf("tabs after local activation = %+v", tabs)
+	}
+	select {
+	case <-remoteCtx.Done():
+	default:
+		t.Fatal("remote tab remained attached after selecting a local session")
+	}
+}
+
 func TestCanonicalTopicActivationPublishesReadableHistoryBeforeRuntime(t *testing.T) {
 	app, source, target, root, workspace := canonicalWorkspaceOpenFixture(t)
 	app.readyHook = func() {}

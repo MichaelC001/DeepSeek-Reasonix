@@ -11,6 +11,32 @@ import (
 	"reasonix/internal/session"
 )
 
+func TestOpenSessionSelectsLocalTabAfterRemote(t *testing.T) {
+	app, _, target, _, _ := canonicalWorkspaceOpenFixture(t)
+	app.remoteTabMu.Lock()
+	app.remoteTabs = map[string]*remoteTab{
+		"remote": {id: "remote", ref: RemoteTabRef{HostID: "box", Workspace: "/work"}, state: "disconnected"},
+	}
+	app.remoteTabLayout = remoteTabLayoutState{activeID: "remote", order: []string{"remote"}, stripOrder: []string{"remote"}}
+	app.remoteTabMu.Unlock()
+
+	if _, err := app.OpenSession(target.Ref()); err != nil {
+		t.Fatal(err)
+	}
+	localActive, remoteActive := false, false
+	for _, tab := range app.ListTabs() {
+		if tab.Remote == nil && tab.SessionID == target.Ref().SessionID {
+			localActive = tab.Active
+		}
+		if tab.Remote != nil {
+			remoteActive = tab.Active
+		}
+	}
+	if !localActive || remoteActive {
+		t.Fatalf("OpenSession left localActive=%v remoteActive=%v", localActive, remoteActive)
+	}
+}
+
 func TestCanonicalNavigationLastRequestWins(t *testing.T) {
 	app, tab, target, _, _ := canonicalWorkspaceOpenFixture(t)
 	ctrl := tab.Ctrl
