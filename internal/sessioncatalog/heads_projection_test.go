@@ -128,6 +128,50 @@ func TestReconcileMarksStaleHeadIndexUnknownAndKeepsRows(t *testing.T) {
 	}
 }
 
+func TestFreshCatalogOverStaleHeadIndexProjectsEveryHead(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "heads.jsonl")
+	writeSchemaTwoSession(t, path)
+	// An older build appends to the log without rewriting the head index.
+	if err := os.Remove(store.SessionEventIndex(path)); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := Open(ctx, Options{Path: filepath.Join(t.TempDir(), "catalog.sqlite"), DisableRepair: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = catalog.Close(context.Background()) })
+	target := DirectoryTarget{Path: dir, Scope: "global"}
+	assertHeadRowsMatchCount := func(stage string) {
+		t.Helper()
+		var rows, declared int
+		if err := catalog.db.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM catalog_heads),
+			(SELECT COALESCE(SUM(head_count),0) FROM catalog_sessions)`).Scan(&rows, &declared); err != nil {
+			t.Fatal(err)
+		}
+		if rows != declared || rows != 2 {
+			t.Fatalf("%s: catalog_heads rows=%d, sum(head_count)=%d, want 2 and 2", stage, rows, declared)
+		}
+		page, err := catalog.ListSessions(ctx, SessionPageRequest{Scope: "global", Limit: 10})
+		if err != nil || len(page.Items) != 1 || page.Items[0].Path != path {
+			t.Fatalf("%s: sessions = %+v err=%v", stage, page.Items, err)
+		}
+	}
+	if err := catalog.ReconcileDirectory(ctx, target); err != nil {
+		t.Fatal(err)
+	}
+	catalog.runRepairWave(ctx)
+	assertHeadRowsMatchCount("after repair")
+	if rec, ok, err := catalog.GetSession(ctx, path); err != nil || !ok || rec.TurnsState != TurnsValid {
+		t.Fatalf("repaired session = %+v ok=%v err=%v, want valid", rec, ok, err)
+	}
+	if err := catalog.ReconcileDirectory(ctx, target); err != nil {
+		t.Fatal(err)
+	}
+	assertHeadRowsMatchCount("after reconcile")
+}
+
 func TestMigrationV12AddsHeadProjectionAndForcesRescan(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "catalog.sqlite")
