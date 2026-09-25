@@ -212,10 +212,12 @@ func TestStartTopicActivationSyncBuildAndReuseFastPath(t *testing.T) {
 func TestStartTopicActivationReplacesRemoteSurface(t *testing.T) {
 	isolateDesktopUserDirs(t)
 	app := NewApp()
+	app.ctx = context.Background()
 	app.readyHook = func() {}
 	installNoopRuntimeEvents(app)
 	events := newActivationEventRecorder(app)
-	t.Cleanup(func() { app.shutdown(context.Background()) })
+	gate := newTabBuildGate(app)
+	t.Cleanup(func() { gate.releaseAll(); app.shutdown(context.Background()) })
 
 	remoteCtx, cancelRemote := context.WithCancel(context.Background())
 	app.remoteTabMu.Lock()
@@ -229,8 +231,8 @@ func TestStartTopicActivationReplacesRemoteSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Completion holds singleSurfaceMu until the ticket is returned. The local
-	// tab must already be the sole active entry during that interval.
+	// Keep phase 2 blocked so phase 1 alone must select the local tab.
+	gate.waitEntered(t, ticket.TabID)
 	if tabs := app.ListTabs(); len(tabs) == 0 {
 		t.Fatalf("tabs immediately after local ticket = %+v, want active %q", tabs, ticket.TabID)
 	} else {
@@ -244,6 +246,7 @@ func TestStartTopicActivationReplacesRemoteSurface(t *testing.T) {
 			t.Fatalf("tabs immediately after local ticket = %+v, want active %q", tabs, ticket.TabID)
 		}
 	}
+	gate.release(ticket.TabID)
 	events.waitFor(t, activationEventFor(ticket.RequestID, "ready"))
 	flushActivationCompletions(app)
 	if tabs := app.ListTabs(); len(tabs) != 1 || tabs[0].ID != ticket.TabID || !tabs[0].Active {
