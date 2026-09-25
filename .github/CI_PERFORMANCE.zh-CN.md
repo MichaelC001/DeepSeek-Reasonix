@@ -10,6 +10,10 @@ Go、生成协议、Electron、原生平台和打包输入。`desktop/AGENTS.md`
 未知路径或无法获得可靠 diff 时保守失败。PR 使用 merge-base 差异，push 使用
 `before..sha`；保留纯 release-notes 例外后，普通 `main-v2` push 仍运行完整验证矩阵。
 
+桌面 race 检测（`desktop-go-race`，11 个分片）只在 `main-v2` push 和手动触发时运行，
+PR 上不运行。PR 仍以不带 `-race` 的方式运行同样的分片（`desktop-go` 与 Windows 分组），
+因此 PR 引入的数据竞争会在合并后的 push 运行中报告。
+
 `desktop-prepare` 重新生成桌面宿主契约（有漂移即失败），并在 Linux 上分别生成一次
 `electron/stable` 与 `electron/canary` 前端。每份产物都带版本化 manifest，记录
 checkout、workflow attempt、变体、构建输入、工具链以及每个 `dist` 文件的摘要。

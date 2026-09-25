@@ -12,6 +12,11 @@ Unknown paths and unavailable diffs fail closed. Pull requests use merge-base
 diffs; pushes use `before..sha`; normal `main-v2` pushes keep the complete
 qualification matrix after the existing release-notes-only exception.
 
+The desktop race sweep (`desktop-go-race`, eleven partitions) runs on `main-v2`
+pushes and manual dispatch, never on pull requests. Pull requests still run the
+same partitions without `-race` (`desktop-go` and the Windows groups), so a data
+race introduced by a pull request is reported by the push run after it merges.
+
 `desktop-prepare` regenerates the desktop host contract (failing on drift) and
 produces the required `electron/stable` and `electron/canary` frontend variants
 once on Linux. Each artifact carries a versioned manifest with checkout,
