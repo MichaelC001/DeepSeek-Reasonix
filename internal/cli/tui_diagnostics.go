@@ -80,7 +80,7 @@ type tuiDiagnostics struct {
 	previous *slog.Logger
 	logger   *slog.Logger
 	writer   io.Writer
-	file     *os.File
+	file     *rotatingDiagnosticLog
 	path     string
 	close    sync.Once
 
@@ -144,9 +144,9 @@ func startTUIDiagnostics(reasonixHome string) *tuiDiagnostics {
 		if err := os.MkdirAll(logDir, 0o700); err == nil {
 			pruneTUIDiagnosticLogs(logDir, time.Now())
 			if file, err := os.CreateTemp(logDir, "cli-tui-*.log"); err == nil {
-				d.file = file
+				d.file = newRotatingDiagnosticLog(file, tuiDiagnosticLogLimit)
 				d.path = file.Name()
-				d.writer = &boundedDiagnosticWriter{dst: file, remaining: tuiDiagnosticLogLimit}
+				d.writer = d.file
 			}
 		}
 	}
@@ -672,39 +672,4 @@ func pruneTUIDiagnosticLogs(logDir string, now time.Time) {
 		}
 		_ = os.Remove(filepath.Join(logDir, entry.Name()))
 	}
-}
-
-type boundedDiagnosticWriter struct {
-	mu        sync.Mutex
-	dst       io.Writer
-	remaining int64
-	truncated bool
-}
-
-func (w *boundedDiagnosticWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	total := len(p)
-	if total == 0 || w.dst == nil || w.remaining <= 0 {
-		return total, nil
-	}
-	n := total
-	if int64(n) > w.remaining {
-		n = int(w.remaining)
-	}
-	written, err := w.dst.Write(p[:n])
-	if written > 0 {
-		w.remaining -= int64(written)
-	}
-	if err != nil || written != n {
-		w.remaining = 0
-		return total, nil
-	}
-	if n < total && !w.truncated {
-		w.truncated = true
-		_, _ = io.WriteString(w.dst, "\nreasonix: CLI TUI diagnostic log limit reached; further diagnostics omitted\n")
-		w.remaining = 0
-	}
-	return total, nil
 }
