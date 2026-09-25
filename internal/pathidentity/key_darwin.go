@@ -9,32 +9,29 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/unix"
-	"golang.org/x/text/unicode/norm"
 )
 
 const pathconfCaseSensitive = 11
+
+var systemVolume = darwinVolume{
+	fsType: func(dir string) (string, error) {
+		var stat unix.Statfs_t
+		if err := unix.Statfs(dir, &stat); err != nil {
+			return "", err
+		}
+		return strings.TrimRight(string(stat.Fstypename[:]), "\x00"), nil
+	},
+	caseSensitive: func(dir string) (int, error) {
+		return syscall.Pathconf(dir, pathconfCaseSensitive)
+	},
+}
 
 func platformIdentityKey(path string) (string, error) {
 	parent, err := closestExistingDirectory(path)
 	if err != nil {
 		return "", err
 	}
-	var stat unix.Statfs_t
-	if err := unix.Statfs(parent, &stat); err != nil {
-		return "", err
-	}
-	fsType := strings.TrimRight(string(stat.Fstypename[:]), "\x00")
-	if fsType == "apfs" || fsType == "hfs" {
-		path = norm.NFD.String(path)
-	}
-	caseSensitive, err := syscall.Pathconf(parent, pathconfCaseSensitive)
-	if err != nil {
-		return "", err
-	}
-	if caseSensitive == 0 {
-		path = strings.ToLower(path)
-	}
-	return path, nil
+	return darwinIdentityKeyBy(path, parent, systemVolume)
 }
 
 func closestExistingDirectory(path string) (string, error) {
