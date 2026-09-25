@@ -110,6 +110,9 @@ export function useSessionNavigationCommands(input: SessionNavigationCommandsInp
     if (!input.isNavigationIntentCurrent(navigationIntentSeq)) return;
     input.closeTransientOverlays();
     input.clearImDetail();
+    if (sessionPath?.startsWith("session-id:")) {
+      return navigation.enqueueNavigationWithIntent({ kind: "canonical-session", ref: { hostId: "local", sessionId: sessionPath.slice("session-id:".length) } }, navigationIntentSeq);
+    }
     return navigation.enqueueNavigationWithIntent({ kind: "topic", scope, workspaceRoot, topicId, sessionPath }, navigationIntentSeq);
   });
 

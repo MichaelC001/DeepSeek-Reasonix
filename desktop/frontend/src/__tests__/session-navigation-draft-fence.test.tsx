@@ -78,8 +78,8 @@ try {
   await act(async () => { root.render(<Probe />); });
   await act(async () => { await commands.handleOpenTopic("project", "/workspace", "existing-topic", "session-id:existing-session"); });
   assert.deepEqual(enqueued.at(-1)?.request, {
-    kind: "topic", scope: "project", workspaceRoot: "/workspace", topicId: "existing-topic", sessionPath: "session-id:existing-session",
-  }, "sidebar session keeps its local workspace and exact session identity on the topic surface path");
+    kind: "canonical-session", ref: { hostId: "local", sessionId: "existing-session" },
+  }, "sidebar session keeps its exact local identity on the canonical session path");
   enqueued.length = 0;
   intent = 0;
   await act(async () => {
