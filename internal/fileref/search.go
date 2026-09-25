@@ -37,15 +37,21 @@ var skipDirNames = map[string]bool{
 	".dart_tool":    true,
 }
 
-// SkipEntry reports whether a workspace entry is hidden from file pickers. rel
-// is the entry's slash-separated path from the workspace root.
+// SkipEntry reports whether a workspace entry is hidden from "@" reference
+// search. rel is the entry's slash-separated path from the workspace root.
 func SkipEntry(rel, name string, isDir bool) bool {
-	if skipEntryNames[name] {
-		return true
-	}
-	return isDir && (skipDirNames[name] || skipDirPaths[rel])
+	return SkipBrowseEntry(name, isDir) || (isDir && skipDirPaths[rel])
 }
 
+// SkipBrowseEntry reports whether a workspace entry is hidden from browsing
+// surfaces that mirror the disk, such as a file tree.
+func SkipBrowseEntry(name string, isDir bool) bool {
+	return skipEntryNames[name] || (isDir && skipDirNames[name])
+}
+
+// skipDirPaths are generated-output paths of this repository; their generic
+// names ("tmp", "bin") are hand-edited directories elsewhere, so only search
+// may skip them.
 var skipDirPaths = map[string]bool{
 	"bin":                      true,
 	"desktop/frontend/wailsjs": true, // retired Wails-generated bindings (stale dirs on old checkouts)

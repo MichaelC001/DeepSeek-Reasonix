@@ -5699,14 +5699,14 @@ func TestSearchFileRefsFindsNestedBasename(t *testing.T) {
 
 	app := &App{}
 	listed := app.ListDir("")
-	for _, hidden := range []string{".codex", ".npm", ".pnpm-store", "bin", "dist", "stage", "tmp"} {
-		if hasDirEntry(listed, hidden) {
-			t.Fatalf("ListDir should hide local noise %q, got %+v", hidden, listed)
+	for name, shown := range map[string]bool{".codex": false, ".npm": false, ".pnpm-store": false, "dist": false, "bin": true, "stage": true, "tmp": true} {
+		if hasDirEntry(listed, name) != shown {
+			t.Fatalf("ListDir shows %q = %v, want %v (only @-search skips generic names); got %+v", name, !shown, shown, listed)
 		}
 	}
 	desktopFrontend := app.ListDir("desktop/frontend")
-	if hasDirEntry(desktopFrontend, "wailsjs") {
-		t.Fatalf("ListDir should hide generated Wails bindings, got %+v", desktopFrontend)
+	if !hasDirEntry(desktopFrontend, "wailsjs") {
+		t.Fatalf("ListDir should show desktop/frontend/wailsjs, got %+v", desktopFrontend)
 	}
 	frontendEntries := app.ListDir("frontend")
 	for _, hidden := range []string{".DS_Store", "Thumbs.db"} {

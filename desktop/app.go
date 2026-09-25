@@ -9841,18 +9841,6 @@ func previewMediaKind(path string) (kind string, mime string) {
 	return "", ""
 }
 
-func workspaceEntryRel(rel, name string) string {
-	rel = strings.Trim(filepath.ToSlash(rel), "/")
-	if rel == "" || rel == "." {
-		return name
-	}
-	return rel + "/" + name
-}
-
-func skipWorkspaceEntry(rel, name string, isDir bool) bool {
-	return fileref.SkipEntry(workspaceEntryRel(rel, name), name, isDir)
-}
-
 func (a *App) activeWorkspaceBase() (string, error) {
 	return workspaceBaseFromRoot(a.activeWorkspaceRoot())
 }
@@ -9943,7 +9931,7 @@ func listDirForWorkspaceTarget(base string, ctrl control.SessionAPI, rel string)
 	dirs, files := []DirEntry{}, []DirEntry{}
 	for _, e := range es {
 		name := e.Name()
-		if skipWorkspaceEntry(rel, name, e.IsDir()) {
+		if fileref.SkipBrowseEntry(name, e.IsDir()) {
 			continue
 		}
 		if e.IsDir() {
