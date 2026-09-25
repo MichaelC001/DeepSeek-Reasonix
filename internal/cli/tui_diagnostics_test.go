@@ -75,29 +75,6 @@ func TestTUIDiagnosticsFallBackToDiscardWithoutLeakingToTerminal(t *testing.T) {
 	}
 }
 
-func TestBoundedDiagnosticWriterStopsAtLimit(t *testing.T) {
-	var dst bytes.Buffer
-	w := &boundedDiagnosticWriter{dst: &dst, remaining: 8}
-	payload := strings.Repeat("x", 32)
-	n, err := io.WriteString(w, payload)
-	if err != nil || n != len(payload) {
-		t.Fatalf("Write = (%d, %v), want (%d, nil)", n, err, len(payload))
-	}
-	if !strings.HasPrefix(dst.String(), strings.Repeat("x", 8)) {
-		t.Fatalf("bounded output = %q, want eight payload bytes first", dst.String())
-	}
-	if !strings.Contains(dst.String(), "diagnostic log limit reached") {
-		t.Fatalf("bounded output = %q, want truncation marker", dst.String())
-	}
-	before := dst.Len()
-	if _, err := io.WriteString(w, "more"); err != nil {
-		t.Fatalf("discard after cap: %v", err)
-	}
-	if dst.Len() != before {
-		t.Fatalf("writer grew after cap: before=%d after=%d", before, dst.Len())
-	}
-}
-
 func TestCLIProfileBuildOptionsPropagateInteractiveOwners(t *testing.T) {
 	var diagnostic bytes.Buffer
 	recovered := false
@@ -665,5 +642,42 @@ func TestWatchdogKillFallbackRunsWhileGracefulShutdownIsBlocked(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("doKill did not return after graceful shutdown unblocked")
+	}
+}
+
+func TestTUIDiagnosticsKeepLatestEntriesWithinTotalBound(t *testing.T) {
+	home := t.TempDir()
+	d := startTUIDiagnostics(home)
+	t.Cleanup(d.Close)
+	line := strings.Repeat("x", 1023) + "\n"
+	for written := 0; written < 3*tuiDiagnosticLogLimit; written += len(line) {
+		if _, err := io.WriteString(d.Writer(), line); err != nil {
+			t.Fatalf("write filler: %v", err)
+		}
+	}
+	const marker = "entry-just-before-the-crash"
+	fmt.Fprintln(d.Writer(), marker)
+	d.Close()
+
+	logDir := tuiDiagnosticLogDir(home)
+	entries, err := os.ReadDir(logDir)
+	if err != nil {
+		t.Fatalf("read log dir: %v", err)
+	}
+	var total int64
+	found := false
+	for _, entry := range entries {
+		data, err := os.ReadFile(filepath.Join(logDir, entry.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		total += int64(len(data))
+		found = found || strings.Contains(string(data), marker)
+	}
+	if !found {
+		t.Fatalf("latest diagnostic entry is not on disk; the log kept only its head")
+	}
+	if total > tuiDiagnosticLogLimit+64<<10 {
+		t.Fatalf("diagnostic logs occupy %d bytes, want at most about %d", total, tuiDiagnosticLogLimit)
 	}
 }
