@@ -129,8 +129,10 @@ func (a *App) StartTurnForTab(tabID, input, submissionID string) (TurnStartView,
 	if ctrl == nil {
 		return TurnStartView{}, a.workspaceNotReadyErr(tab)
 	}
-	turnID := ""
-	if admitted, ok := ctrl.(interface{ TurnIDForSubmission(string) string }); ok {
+	// Admission is released by now and the tab may hold a rebuilt controller,
+	// so the admitting controller's receipt is the authority when it has one.
+	turnID := result.TurnID
+	if admitted, ok := ctrl.(interface{ TurnIDForSubmission(string) string }); ok && turnID == "" {
 		turnID = admitted.TurnIDForSubmission(submissionID)
 	}
 	if strings.TrimSpace(turnID) == "" {
@@ -174,11 +176,12 @@ func (a *App) StartTurnForTabWithDrafts(tabID, input, submissionID string, draft
 	if !ok {
 		return TurnStartView{}, fmt.Errorf("unsupported: attachments-v1")
 	}
-	if _, err := identified.SubmitIdentified(req); err != nil {
+	receipt, err := identified.SubmitIdentified(req)
+	if err != nil {
 		return TurnStartView{}, inboxBridgeError(err)
 	}
 	admission.finish(ctrl)
-	turnID := identified.TurnIDForSubmission(submissionID)
+	turnID := receipt.TurnID
 	if strings.TrimSpace(turnID) == "" {
 		return TurnStartView{}, fmt.Errorf("turn admission did not produce a durable turn id")
 	}

@@ -130,6 +130,7 @@ func classifyDocsSubmit(trimmed, command string) SubmitDisposition {
 type SubmitResult struct {
 	Disposition SubmitDisposition `json:"disposition"`
 	OperationID string            `json:"operationId,omitempty"`
+	TurnID      string            `json:"turnId,omitempty"`
 }
 
 // SubmitDisplayWithResult preserves the existing asynchronous submit behavior

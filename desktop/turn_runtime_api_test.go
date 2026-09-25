@@ -228,3 +228,49 @@ func TestStartTurnForTabRejectsManagementDuringActiveTurn(t *testing.T) {
 		t.Fatal("turn did not finish after cancellation")
 	}
 }
+
+// The turn id belongs to the controller that admitted the submission. A tab
+// whose controller is replaced before the reply is built must still answer
+// with that receipt instead of asking the replacement.
+func TestStartTurnForTabAnswersWithAdmittingControllerReceipt(t *testing.T) {
+	dir := t.TempDir()
+	runner := &exactTurnRunner{started: make(chan struct{})}
+	sink := &tabEventSink{tabID: "tab", ctx: context.Background()}
+	tab := &WorkspaceTab{ID: "tab", Scope: "global", Ready: true, sink: sink}
+	app := &App{tabs: map[string]*WorkspaceTab{tab.ID: tab}, activeTabID: tab.ID}
+	sink.app = app
+
+	replacementDir := t.TempDir()
+	replacement := control.New(control.Options{SessionDir: replacementDir, SessionPath: filepath.Join(replacementDir, "session.jsonl")})
+	cleanupExactTurnController(t, replacement)
+	var swap sync.Once
+	ctrl := control.New(control.Options{
+		Runner: runner, SessionDir: dir, SessionPath: filepath.Join(dir, "session.jsonl"),
+		Sink: event.FuncSink(func(e event.Event) {
+			sink.Emit(e)
+			if e.Kind == event.TurnStarted {
+				swap.Do(func() {
+					app.mu.Lock()
+					tab.Ctrl = replacement
+					app.mu.Unlock()
+				})
+			}
+		}),
+	})
+	cleanupExactTurnController(t, ctrl)
+	tab.Ctrl = ctrl
+
+	start, err := app.StartTurnForTab(tab.ID, "hold this turn", "submission-swapped")
+	if err != nil {
+		t.Fatalf("StartTurnForTab: %v", err)
+	}
+	if want := ctrl.TurnIDForSubmission("submission-swapped"); want == "" || start.TurnID != want {
+		t.Fatalf("turn id = %q, want the admitting controller's receipt %q", start.TurnID, want)
+	}
+	select {
+	case <-runner.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("turn runner did not start")
+	}
+	ctrl.Cancel()
+}
