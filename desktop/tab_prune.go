@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sync"
 )
@@ -83,10 +84,26 @@ func (a *App) pruneVisibleTabsRuntimeAdmissionHeld(tabID string) (TabMeta, error
 		a.removeTabOrderLocked(id)
 	}
 	a.tabOrder = []string{tabID}
+	// A local topic replaces the remote visible surface too. Leaving its
+	// registry entry active makes ListTabs hide the newly selected local tab.
+	a.remoteTabMu.Lock()
+	remoteCancels := make([]context.CancelFunc, 0, len(a.remoteTabs))
+	for id, remote := range a.remoteTabs {
+		if remote.cancel != nil {
+			remoteCancels = append(remoteCancels, remote.cancel)
+		}
+		delete(a.remoteTabs, id)
+		a.forgetRemoteBrowserExecutor(id)
+	}
+	a.remoteTabLayout = remoteTabLayoutState{}
+	a.remoteTabMu.Unlock()
 	a.saveTabsLocked()
 	meta := a.tabMeta(active, true)
 	a.mu.Unlock()
 
+	for _, cancel := range remoteCancels {
+		cancel()
+	}
 	for _, tab := range removed {
 		a.removeVisibleTabRuntimeAdmissionHeld(tab)
 	}
