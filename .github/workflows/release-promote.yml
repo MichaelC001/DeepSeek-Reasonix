@@ -45,14 +45,14 @@ jobs:
       desktop_prefix: ${{ steps.record.outputs.desktop_prefix }}
       approved_artifact: approved-release-candidate-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: false
@@ -151,49 +151,49 @@ jobs:
           node "$worktree/scripts/release-notes.mjs" render --version "v${{ steps.record.outputs.version }}" --output release-notes.md
           git worktree remove "$worktree"
           test "$(sha256sum release-notes.md | awk '{print $1}')" = "$(jq -r .notes.renderedSha256 record/record.json)"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: orchestrator-reviewed-release-notes
           path: release-notes.md
           if-no-files-found: error
           retention-days: 1
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: approved-release-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: payload
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.record.outputs.desktop_prefix }}-darwin-arm64
           path: payload/desktop/darwin-arm64
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.record.outputs.desktop_prefix }}-darwin-amd64
           path: payload/desktop/darwin-amd64
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.record.outputs.desktop_prefix }}-darwin-universal
           path: payload/desktop/darwin-universal
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.record.outputs.desktop_prefix }}-windows-amd64
           path: payload/desktop/windows-amd64
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.record.outputs.desktop_prefix }}-windows-arm64
           path: payload/desktop/windows-arm64
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.record.outputs.desktop_prefix }}-linux-amd64
           path: payload/desktop/linux-amd64
@@ -220,7 +220,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -294,13 +294,13 @@ jobs:
           DESKTOP_RESULT: ${{ needs.desktop.result }}
         run: |
           for result in "$CLI_RESULT" "$DESKTOP_RESULT"; do test "$result" = success; done
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: false
@@ -315,7 +315,7 @@ jobs:
         run: bash scripts/sync-release-site.sh
       - name: Upload publication ledger
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-publication-ledger-${{ needs.preflight.outputs.candidate_id }}-${{ github.run_attempt }}
           path: /tmp/publication-ledger.json
@@ -333,7 +333,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
       - name: Record queue, execution, and critical-path evidence
@@ -348,7 +348,7 @@ jobs:
             --summary "$GITHUB_STEP_SUMMARY" \
             --output "$RUNNER_TEMP/publication-timing.json" \
             --title "Release publication timing"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-publication-timing-${{ needs.preflight.outputs.candidate_id || github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/publication-timing.json

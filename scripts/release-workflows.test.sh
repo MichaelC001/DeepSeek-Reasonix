@@ -100,7 +100,7 @@ grep -Fq 'required: false' <<<"$(sed -n '/^      rehearsal:/,$p' <<<"$candidate_
 ! grep -Fq 'pull_request_target' "$candidate"
 grep -Fq 'branches: [main-v2]' "$candidate"
 grep -Fq -- '- release-notes/releases.json' "$candidate"
-grep -Fq 'actions/attest-build-provenance@v3' "$candidate"
+grep -Eq 'actions/attest-build-provenance@[0-9a-f]{40} # v3$' "$candidate"
 grep -Fq 'bash scripts/validate-release-control-plane.sh' "$candidate"
 preflight_line="$(grep -n -m1 'bash scripts/validate-release-control-plane.sh' "$candidate" | cut -d: -f1)"
 source_ci_line="$(grep -n -m1 'run: bash scripts/verify-release-push-ci.sh' "$candidate" | cut -d: -f1)"

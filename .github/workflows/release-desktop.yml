@@ -172,7 +172,7 @@ jobs:
       sha: ${{ steps.candidate.outputs.sha }}
       artifact_prefix: ${{ inputs.reuse_manual_artifacts && 'desktop-34816299501-1-preflight' || format('desktop-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.signing_preflight && 'preflight' || 'release') }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -217,7 +217,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -268,14 +268,14 @@ jobs:
     outputs:
       fingerprint: ${{ steps.contract.outputs.fingerprint }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Validate the protected control-plane files that GitHub and SignPath
           # execute, including during recovery of an older candidate.
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: true
@@ -386,21 +386,21 @@ jobs:
       run:
         shell: bash # desktop-build.sh is bash; windows runners default to pwsh otherwise
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: desktop/go.mod
           cache: true
           cache-dependency-path: desktop/go.sum
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 10
           run_install: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -462,7 +462,7 @@ jobs:
 
       - name: Upload Apple notarization diagnostics
         if: ${{ always() && runner.os == 'macOS' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: apple-notarization-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.name }}
           path: ${{ runner.temp }}/apple-notarization/*.json
@@ -473,7 +473,7 @@ jobs:
       # protected workflow control plane. Reuse this sparse checkout later for
       # Authenticode verification rather than trusting a candidate-owned test.
       - name: Checkout protected release verifier
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.workflow_sha }}
           path: release-control
@@ -510,7 +510,7 @@ jobs:
 
       - name: Upload package size report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: package-size-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.name }}
           path: desktop/build/reports/${{ matrix.name }}
@@ -519,7 +519,7 @@ jobs:
 
       - name: Upload desktop source maps
         if: ${{ always() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: desktop-sourcemaps-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.name }}
           path: |
@@ -546,7 +546,7 @@ jobs:
           RELEASE_ARTIFACT_PREFIX: ${{ needs.resolve.outputs.artifact_prefix }}
         run: node release-control/scripts/desktop-release-artifacts.mjs pack dist "$RUNNER_TEMP/desktop-bundle" "${{ matrix.name }}"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-${{ matrix.name }}
           path: ${{ runner.temp }}/desktop-bundle
@@ -576,19 +576,19 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: desktop/go.mod
           cache: true
           cache-dependency-path: desktop/go.sum
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 10
           run_install: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -605,7 +605,7 @@ jobs:
       - name: Build and package
         run: scripts/desktop-build.sh "${{ matrix.platform }}" "${{ needs.resolve.outputs.version }}" "${{ needs.resolve.outputs.channel }}"
       - name: Checkout protected release verifier
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.workflow_sha }}
           path: release-control
@@ -622,7 +622,7 @@ jobs:
           tar -cf "$signing_archive" desktop/build/windows/signing-payload desktop/build/windows/installer/reasonix_project.nsh
       - name: Upload Windows signing inputs
         if: env.HAS_CERTUM == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-unsigned-${{ matrix.name }}
           path: ${{ runner.temp }}/windows-signing-inputs.tar
@@ -669,7 +669,7 @@ jobs:
           RELEASE_SIGNING_FINGERPRINT: ${{ needs.signing-contract.outputs.fingerprint }}
           RELEASE_ARTIFACT_PREFIX: ${{ needs.resolve.outputs.artifact_prefix }}
         run: node release-control/scripts/desktop-release-artifacts.mjs pack dist "$RUNNER_TEMP/desktop-bundle" "${{ matrix.name }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: inputs.desktop_manual_only
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-${{ matrix.name }}
@@ -679,7 +679,7 @@ jobs:
           retention-days: 7
       - name: Upload package size report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: package-size-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.name }}
           path: desktop/build/reports/${{ matrix.name }}
@@ -687,7 +687,7 @@ jobs:
           retention-days: 30
       - name: Upload desktop source maps
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: desktop-sourcemaps-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.name }}
           path: |
@@ -714,20 +714,20 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.workflow_sha }}
           path: release-control
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
       - name: Reuse completed signed architectures from an earlier attempt
@@ -771,12 +771,12 @@ jobs:
             echo "needs_signing=true" >> "$GITHUB_OUTPUT"
             printf 'Architectures requiring signing: %s\n' "${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
           fi
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         if: steps.reuse.outputs.needs_signing == 'true'
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-unsigned-windows-amd64
           path: ${{ runner.temp }}/signing-inputs/amd64
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         if: steps.reuse.outputs.needs_signing == 'true'
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-unsigned-windows-arm64
@@ -824,7 +824,7 @@ jobs:
           bash release-control/scripts/finalize-windows-signed-candidate.sh amd64 \
             "$runner_temp/signing-work/amd64" signed-payload-amd64 dist-amd64 \
             "$runner_temp/desktop-bundle-amd64" "${{ needs.resolve.outputs.version }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: steps.reuse.outputs.amd64 != 'true'
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-windows-amd64
@@ -851,7 +851,7 @@ jobs:
           bash release-control/scripts/finalize-windows-signed-candidate.sh arm64 \
             "$runner_temp/signing-work/arm64" signed-payload-arm64 dist-arm64 \
             "$runner_temp/desktop-bundle-arm64" "${{ needs.resolve.outputs.version }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: steps.reuse.outputs.arm64 != 'true'
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-windows-arm64
@@ -861,7 +861,7 @@ jobs:
           retention-days: 7
       - name: Upload signed package size reports
         if: steps.reuse.outputs.needs_signing == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: package-size-${{ github.run_id }}-${{ github.run_attempt }}-windows-signed
           path: desktop/build/reports/windows-*
@@ -884,12 +884,12 @@ jobs:
           - { runner: windows-11-arm, arch: arm64 }
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.workflow_sha }}
           path: release-control
           persist-credentials: false
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-windows-${{ matrix.arch }}
           path: ${{ runner.temp }}/windows-bundle
@@ -904,7 +904,7 @@ jobs:
             -EvidenceDirectory "$env:RUNNER_TEMP/reasonix-installer-acceptance"
       - name: Upload signed Windows installer acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: windows-installer-acceptance-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}-signed
           path: |
@@ -923,7 +923,7 @@ jobs:
           if ($installer.Count -ne 1) { throw "Expected one signed installer, found $($installer.Count)" }
           @{ schema = 1; kind = "windows-${{ matrix.arch }}"; status = 'passed'; version = "${{ needs.resolve.outputs.version }}"; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer[0].FullName).Hash.ToLowerInvariant() } |
             ConvertTo-Json | Set-Content -LiteralPath "$env:RUNNER_TEMP/windows-${{ matrix.arch }}.json" -Encoding utf8
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-receipt-windows-${{ matrix.arch }}
           path: ${{ runner.temp }}/windows-${{ matrix.arch }}.json
@@ -940,13 +940,13 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 10
       - name: Install packaged smoke dependencies
@@ -954,7 +954,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: pnpm --dir desktop install --frozen-lockfile
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-darwin-universal
           path: ${{ runner.temp }}/universal-bundle
@@ -977,7 +977,7 @@ jobs:
             --arg sha256 "$(shasum -a 256 "$RUNNER_TEMP/universal-bundle/files/Reasonix-darwin-universal.dmg" | awk '{print $1}')" \
             '{schema: 1, kind: "macos-universal-intel", status: "passed", version: $version, sha256: $sha256}' \
             > "$RUNNER_TEMP/macos-universal-intel.json"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ needs.resolve.outputs.artifact_prefix }}-receipt-macos-universal-intel
           path: ${{ runner.temp }}/macos-universal-intel.json
@@ -997,7 +997,7 @@ jobs:
     # Direct prereleases and manual Stable recovery pass release-gate above. The
     # Certum signing completes before either platform bundle reaches publication.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.sha }}
@@ -1006,7 +1006,7 @@ jobs:
       # control plane on the protected workflow commit so newly-added
       # authorization and recovery scripts remain available, while the source
       # tree above stays pinned to the immutable candidate.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           path: release-control
@@ -1028,17 +1028,17 @@ jobs:
           VERIFY_RELEASE_CHECKOUT: true
         run: bash release-control/scripts/resolve-desktop-candidate.sh
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: desktop/go.mod
           cache: true
           cache-dependency-path: desktop/go.sum
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: ${{ runner.temp }}/desktop-bundles
           pattern: ${{ inputs.preflight_artifact_prefix || needs.resolve.outputs.artifact_prefix }}-{darwin-arm64,darwin-amd64,darwin-universal,windows-amd64,windows-arm64,linux-amd64}
@@ -1093,7 +1093,7 @@ jobs:
 
       - name: Download orchestrator-reviewed release notes
         if: ${{ inputs.orchestrated && needs.resolve.outputs.channel != 'preview' }}
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: orchestrator-reviewed-release-notes
           path: /tmp/orchestrator-reviewed-release-notes
@@ -1151,7 +1151,7 @@ jobs:
 
       - name: Upload preview dist for mirror
         if: needs.resolve.outputs.channel == 'preview'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: preview-dist
           path: dist/*
@@ -1185,7 +1185,7 @@ jobs:
             echo '```'
             echo 'GITHUB_TOKEN cannot write repository variables. Orchestrated releases use same-run preflight evidence.'
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: verified-signing-contract-${{ github.run_id }}-${{ github.run_attempt }}
           path: signing-attestation/verified-contract.json
@@ -1205,18 +1205,18 @@ jobs:
     env:
       HAS_R2: ${{ secrets.R2_ACCESS_KEY_ID != '' && secrets.R2_SECRET_ACCESS_KEY != '' && secrets.R2_ACCOUNT_ID != '' && secrets.R2_BUCKET != '' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.sha }}
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           path: release-control
           ref: ${{ github.workflow_sha }}
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: release-control/desktop/go.mod
           cache: true
@@ -1255,7 +1255,7 @@ jobs:
       # artifact. Stable pulls from the published release.
       - name: Download preview dist
         if: env.HAS_R2 == 'true' && needs.resolve.outputs.channel == 'preview'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: preview-dist
           path: assets

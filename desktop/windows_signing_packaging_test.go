@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -278,8 +279,10 @@ func TestProductionSigningRunsOnlyFromProtectedControlPlane(t *testing.T) {
 		t.Fatal("automatic preparation must use the protected Notes push, never tags or PR heads")
 	}
 	activation := readTestFile(t, "../scripts/release-candidate-tags.sh")
+	if !regexp.MustCompile(`(?m)actions/attest-build-provenance@[0-9a-f]{40} # v3$`).MatchString(candidate + "\n" + promote + "\n" + activation) {
+		t.Error("sealed release control plane must attest with actions/attest-build-provenance v3 pinned to a commit")
+	}
 	for _, want := range []string{
-		`actions/attest-build-provenance@v3`,
 		`candidate_preparation: true`,
 		`git push --atomic "$remote"`,
 		`environment: release`,

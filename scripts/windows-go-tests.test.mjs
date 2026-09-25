@@ -48,7 +48,7 @@ test("CI invokes every isolated group and both residual entrypoints", () => {
   assert.match(isolated, /- name: test\n(?:        #.*\n)*        timeout-minutes: 15\n/);
   assert.match(isolated, /run: node scripts\/windows-go-tests\.mjs \$\{\{ matrix.group \}\}/);
   assert.match(isolated, /fail-fast: false/);
-  assert.match(isolated, /actions\/setup-node@v7/);
+  assert.match(isolated, /actions\/setup-node@[0-9a-f]{40} # v7\b/);
 });
 
 test("Windows PR contract selector covers shell identity, lifecycle and cancellation regressions", () => {

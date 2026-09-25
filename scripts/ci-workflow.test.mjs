@@ -407,7 +407,7 @@ test("Certum signing preserves native builds and gates publication and attestati
   assert.match(runtimeAcceptance, /ExpectedVersion "\$\{\{ needs\.resolve\.outputs\.version \}\}"/);
   const attestation = job(release, "attest-signing-contract");
   assert.ok(!attestation.includes("gh api --method"), "GITHUB_TOKEN cannot mutate repository variables");
-  assert.match(attestation, /uses: actions\/upload-artifact@v7/);
+  assert.match(attestation, /uses: actions\/upload-artifact@[0-9a-f]{40} # v7\b/);
   assert.match(attestation, /verified-contract\.json/);
   assert.match(attestation, /gh variable set/);
   const context = { github: { repository: "esengine/DeepSeek-Reasonix" }, inputs: { signing_preflight: true, orchestrated: false },
