@@ -72,25 +72,7 @@ func Resolve(path string, options Options) (Identity, error) {
 }
 
 func Same(a, b string, options Options) (bool, error) {
-	left, err := Resolve(a, options)
-	if err != nil {
-		return false, err
-	}
-	right, err := Resolve(b, options)
-	if err != nil {
-		return false, err
-	}
-	leftInfo, leftErr := statForMode(left.AccessPath, options.FollowLeaf)
-	rightInfo, rightErr := statForMode(right.AccessPath, options.FollowLeaf)
-	if leftErr == nil && rightErr == nil && os.SameFile(leftInfo, rightInfo) {
-		return true, nil
-	}
-	for _, statErr := range []error{leftErr, rightErr} {
-		if statErr != nil && !os.IsNotExist(statErr) {
-			return false, classify("verify", "", statErr)
-		}
-	}
-	return left.Key == right.Key, nil
+	return NewMatcher(options, nil).Same(a, b)
 }
 
 func statForMode(path string, followLeaf bool) (os.FileInfo, error) {

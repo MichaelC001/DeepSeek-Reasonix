@@ -5074,16 +5074,24 @@ func normalizeProjectRoot(root string) string {
 }
 
 func sameProjectRoot(a, b string) bool {
-	return sameDesktopPath(normalizeProjectRoot(a), normalizeProjectRoot(b))
+	return newDesktopPathMatcher().sameProjectRoot(a, b)
+}
+
+func (m desktopPathMatcher) sameProjectRoot(a, b string) bool {
+	return m.same(normalizeProjectRoot(a), normalizeProjectRoot(b))
 }
 
 func projectIndexByRoot(projects []desktopProject, root string) int {
+	return newDesktopPathMatcher().projectIndexByRoot(projects, root)
+}
+
+func (m desktopPathMatcher) projectIndexByRoot(projects []desktopProject, root string) int {
 	root = normalizeProjectRoot(root)
 	if root == "" {
 		return -1
 	}
 	for i, project := range projects {
-		if sameProjectRoot(project.Root, root) {
+		if m.sameProjectRoot(project.Root, root) {
 			return i
 		}
 	}
@@ -5091,12 +5099,16 @@ func projectIndexByRoot(projects []desktopProject, root string) int {
 }
 
 func projectRootInList(roots []string, root string) bool {
+	return newDesktopPathMatcher().projectRootInList(roots, root)
+}
+
+func (m desktopPathMatcher) projectRootInList(roots []string, root string) bool {
 	root = normalizeProjectRoot(root)
 	if root == "" {
 		return false
 	}
 	for _, candidate := range roots {
-		if sameProjectRoot(candidate, root) {
+		if m.sameProjectRoot(candidate, root) {
 			return true
 		}
 	}
@@ -5104,6 +5116,10 @@ func projectRootInList(roots []string, root string) bool {
 }
 
 func normalizeProjectsFile(f desktopProjectFile) desktopProjectFile {
+	return newDesktopPathMatcher().normalizeProjectsFile(f)
+}
+
+func (m desktopPathMatcher) normalizeProjectsFile(f desktopProjectFile) desktopProjectFile {
 	out := desktopProjectFile{
 		GlobalTitle:              strings.TrimSpace(f.GlobalTitle),
 		GlobalColor:              normalizeProjectColor(f.GlobalColor),
@@ -5127,7 +5143,7 @@ func normalizeProjectsFile(f desktopProjectFile) desktopProjectFile {
 		p.Topics = uniqueStrings(p.Topics)
 		p.PinnedTopics = uniqueStrings(p.PinnedTopics)
 		p.Groups = normalizeGroups(p.Groups)
-		if i := projectIndexByRoot(out.Projects, root); i >= 0 {
+		if i := m.projectIndexByRoot(out.Projects, root); i >= 0 {
 			if out.Projects[i].Title == "" && p.Title != "" {
 				out.Projects[i].Title = p.Title
 			}
@@ -5145,15 +5161,15 @@ func normalizeProjectsFile(f desktopProjectFile) desktopProjectFile {
 	}
 	for _, root := range uniqueStrings(f.PinnedProjects) {
 		root = normalizeProjectRoot(root)
-		if i := projectIndexByRoot(out.Projects, root); i >= 0 && !projectRootInList(out.PinnedProjects, out.Projects[i].Root) {
+		if i := m.projectIndexByRoot(out.Projects, root); i >= 0 && !m.projectRootInList(out.PinnedProjects, out.Projects[i].Root) {
 			out.PinnedProjects = append(out.PinnedProjects, out.Projects[i].Root)
 		}
 	}
-	out.SidebarOrder = normalizeSidebarOrder(f.SidebarOrder, out.Projects)
+	out.SidebarOrder = m.normalizeSidebarOrder(f.SidebarOrder, out.Projects)
 	return out
 }
 
-func normalizeSidebarOrder(order []string, projects []desktopProject) []string {
+func (m desktopPathMatcher) normalizeSidebarOrder(order []string, projects []desktopProject) []string {
 	seenGlobal := false
 	// Dedupe roots against a roots-only list: out also holds the global order
 	// token, which must never be path-compared against project roots.
@@ -5169,12 +5185,12 @@ func normalizeSidebarOrder(order []string, projects []desktopProject) []string {
 			continue
 		}
 		root := normalizeProjectRoot(value)
-		i := projectIndexByRoot(projects, root)
+		i := m.projectIndexByRoot(projects, root)
 		if i < 0 {
 			continue
 		}
 		root = projects[i].Root
-		if projectRootInList(seenRoots, root) {
+		if m.projectRootInList(seenRoots, root) {
 			continue
 		}
 		seenRoots = append(seenRoots, root)
