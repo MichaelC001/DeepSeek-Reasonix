@@ -3609,6 +3609,7 @@ export const zhTW: Record<DictKey, string> = {
   "crash.sending": "傳送中…",
   "crash.sent": "已傳送，謝謝！",
   "crash.sendFailed": "傳送失敗 —— 請改用複製",
+  "crash.restart": "重新啟動 Reasonix",
   "crash.privacyNote": "報告僅包含上方錯誤文字（路徑中的使用者名稱已移除）以及應用版本和作業系統。",
   "performanceReport.title": "Reasonix 偵測到回應卡頓",
   "performanceReport.dismiss": "關閉",

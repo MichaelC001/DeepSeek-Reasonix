@@ -21962,14 +21962,16 @@ body > .mermaid-diagram--fullscreen {
   gap: 8px;
 }
 .crash-overlay__copy,
-.crash-overlay__send {
+.crash-overlay__send,
+.crash-overlay__restart {
   padding: 6px 12px;
   border: 1px solid #444;
   border-radius: 6px;
   background: #2a2a40;
   color: inherit;
 }
-.crash-overlay__send[disabled] {
+.crash-overlay__send[disabled],
+.crash-overlay__restart[disabled] {
   opacity: 0.65;
 }
 .crash-overlay__note {
