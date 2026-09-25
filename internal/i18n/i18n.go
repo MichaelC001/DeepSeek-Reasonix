@@ -88,10 +88,11 @@ type Messages struct {
 	ReceiptRisksHeader               string // end-of-turn receipt, header above declared risks
 	ReceiptMore                      string // end-of-turn receipt, "and N more" tail
 	// ReceiptGapKinds maps a completion gap kind to its short human phrase.
-	ReceiptGapKinds   map[string]string
-	NoSessionToResume string // shown when --continue / --resume finds nothing
-	ResumeRequiresTTY string // shown when --resume runs piped instead of on a terminal
-	PickSessionLabel  string // header on the --resume picker
+	ReceiptGapKinds     map[string]string
+	NoSessionToResume   string // shown when --continue / --resume finds nothing
+	ResumeRequiresTTY   string // shown when --resume runs piped instead of on a terminal
+	AmbiguousResumeHint string // under the candidates of a --resume query that matched several sessions
+	PickSessionLabel    string // header on the --resume picker
 
 	// in-chat /resume command
 	ResumeBusy          string // shown when /resume is used mid-turn

@@ -163,17 +163,17 @@ func resolveSessionQuery(dir, query string) (cliResumeTarget, error) {
 	// mirrors folded and migrated sources hidden, so a transcript and the
 	// identity it was imported under never compete as two matches.
 	scan := scanWorkspaceResume(context.Background(), dir)
-	var exact []cliResumeTarget
+	var exact []resumeEntry
 	for _, session := range sessions {
 		id := agent.BranchID(session.Path)
 		base := filepath.Base(session.Path)
 		if query == id || query == base || query == session.Path {
-			exact = append(exact, cliResumeTarget{path: session.Path})
+			exact = append(exact, resumeEntry{session: session, target: cliResumeTarget{path: session.Path}})
 		}
 	}
 	for _, entry := range scan.canonical {
 		if id := entry.target.ref.SessionID; query == id || query == cliCanonicalRoute(id) {
-			exact = append(exact, entry.target)
+			exact = append(exact, entry)
 		}
 	}
 	matches := exact
@@ -184,7 +184,7 @@ func resolveSessionQuery(dir, query string) (cliResumeTarget, error) {
 				agent.BranchID(session.Path), filepath.Base(session.Path), session.CustomTitle, session.TopicTitle, session.Preview,
 			}, "\n"))
 			if strings.Contains(haystack, lower) {
-				matches = append(matches, cliResumeTarget{path: session.Path})
+				matches = append(matches, resumeEntry{session: session, target: cliResumeTarget{path: session.Path}})
 			}
 		}
 		for _, entry := range scan.canonical {
@@ -192,7 +192,7 @@ func resolveSessionQuery(dir, query string) (cliResumeTarget, error) {
 				entry.target.ref.SessionID, entry.session.CustomTitle, entry.session.Preview,
 			}, "\n"))
 			if strings.Contains(haystack, lower) {
-				matches = append(matches, entry.target)
+				matches = append(matches, entry)
 			}
 		}
 	}
@@ -200,10 +200,21 @@ func resolveSessionQuery(dir, query string) (cliResumeTarget, error) {
 	case 0:
 		return cliResumeTarget{}, fmt.Errorf("no session matches %q", query)
 	case 1:
-		return matches[0], nil
+		return matches[0].target, nil
 	default:
-		return cliResumeTarget{}, fmt.Errorf("session query %q is ambiguous (%d matches)", query, len(matches))
+		return cliResumeTarget{}, &ambiguousSessionQueryError{query: query, matches: matches}
 	}
+}
+
+// ambiguousSessionQueryError carries the conversations a --resume query
+// matched, so the caller can list them or offer them in the picker.
+type ambiguousSessionQueryError struct {
+	query   string
+	matches []resumeEntry
+}
+
+func (e *ambiguousSessionQueryError) Error() string {
+	return fmt.Sprintf("session query %q is ambiguous (%d matches)", e.query, len(e.matches))
 }
 
 // looksLikeMachineSessionID reports whether query is the opaque HMAC form
