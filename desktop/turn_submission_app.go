@@ -318,8 +318,8 @@ func (a *App) submitEditedDisplayToTab(tabID, display, input, original, submissi
 }
 
 func (a *App) submitToTabResult(tabID, input string, fromBridge, classifyManagement bool, submissionID ...string) (control.SubmitResult, error) {
-	if found, err := a.knownSubmission(tabID, control.SubmissionRequest{ID: firstSubmissionID(submissionID), Input: input, Display: input}); found || err != nil {
-		return control.SubmitResult{Disposition: control.SubmitTurnStarted}, err
+	if receipt, found, err := a.knownSubmissionReceipt(tabID, control.SubmissionRequest{ID: firstSubmissionID(submissionID), Input: input, Display: input}); found || err != nil {
+		return control.SubmitResult{Disposition: control.SubmitTurnStarted, TurnID: receipt.TurnID}, err
 	}
 	management := control.SubmitResult{Disposition: control.SubmitManagementHandled}
 	trimmed := strings.TrimSpace(input)
@@ -406,10 +406,11 @@ func (a *App) submitToTabResult(tabID, input string, fromBridge, classifyManagem
 	}
 	result := control.SubmitResult{Disposition: control.SubmitTurnStarted}
 	if identified, ok := ctrl.(*control.Controller); ok && firstSubmissionID(submissionID) != "" && identified.ClassifySubmitRoute(input) != control.SubmitManagementHandled {
-		_, err := identified.SubmitIdentified(control.SubmissionRequest{ID: firstSubmissionID(submissionID), Input: input, Display: input})
+		receipt, err := identified.SubmitIdentified(control.SubmissionRequest{ID: firstSubmissionID(submissionID), Input: input, Display: input})
 		if err != nil {
 			return control.SubmitResult{}, err
 		}
+		result.TurnID = receipt.TurnID
 	} else if submitter, ok := ctrl.(interface {
 		SubmitDisplayWithResult(display, input string) control.SubmitResult
 	}); ok {
