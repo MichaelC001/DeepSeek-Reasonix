@@ -71,6 +71,9 @@ test("Go, Electron and packaging inputs stay on their owning surfaces", () => {
   flags = classifyPaths(["desktop/packaging/package.mjs"]).flags;
   assert.equal(flags.packaging, true);
   assert.equal(flags.browser, false);
+  for (const path of ["scripts/test-windows-upgrade-startup.ps1", "scripts/windows-upgrade-ui-evidence.ps1", "desktop/internal/upgradefixture/fixture.go", "desktop/cmd/windows-upgrade-fixture/main.go"]) {
+    assert.equal(classifyPaths([path]).flags.packaging, true, path);
+  }
 });
 
 test("Windows shell ownership paths select the full builtin package", () => {

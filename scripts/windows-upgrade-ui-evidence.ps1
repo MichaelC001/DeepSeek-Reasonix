@@ -50,10 +50,10 @@ function Wait-VisibleUpgradeHistory {
     $polls++
     if ($null -ne $root) {
       if (-not $prepared) { $prepared = Invoke-PendingHistoricalSession $root }
-      # Lazy history can already be readable without activating a runtime. A
-      # visible, healthy transcript is sufficient even if no preparation action
-      # was ever offered; Test-VisibleUpgradeHistory rejects pending actions.
-      $found = Test-VisibleUpgradeHistory $root $Text
+      # Lazy history is readable without activating a runtime. The import
+      # action blocks acceptance only when this wait was asked to prepare;
+      # otherwise it is the banner every unprepared legacy tab carries.
+      $found = Test-VisibleUpgradeHistory $root $Text -AllowPendingSource:(-not $PrepareHistoricalSession)
       if ($found) { $prepared = $true }
     }
     $elapsed = (Get-UpgradeUITimeMilliseconds) - $started
@@ -63,7 +63,7 @@ function Wait-VisibleUpgradeHistory {
   return [pscustomobject]@{Root=$root; Found=$found; Prepared=$prepared; ElapsedMilliseconds=$elapsed; Polls=$polls; TimeoutSeconds=$TimeoutSeconds}
 }
 
-function Test-VisibleUpgradeHistory($root, [string]$text) {
+function Test-VisibleUpgradeHistory($root, [string]$text, [switch]$AllowPendingSource) {
   if ([string]::IsNullOrWhiteSpace($text)) { return $false }
   $descendants = @(Get-UpgradeUIDescendants $root)
   foreach ($element in $descendants) {
@@ -72,7 +72,7 @@ function Test-VisibleUpgradeHistory($root, [string]$text) {
     # Old content alone cannot prove recovery: reject a still-loading/failed
     # recovery surface and the obsolete chat notice that originally hid this bug.
     if (([string]$current.AutomationId).StartsWith('reasonix-session-recovery-') -or
-        $current.AutomationId -eq 'reasonix-prepare-restored-session' -or
+        (-not $AllowPendingSource -and $current.AutomationId -eq 'reasonix-prepare-restored-session') -or
         ([string]$current.Name).Contains('Failed to load conversation history.') -or
         ([string]$current.Name).Contains('加载会话历史失败。') -or
         ([string]$current.Name).Contains('載入會話歷史失敗。')) { return $false }

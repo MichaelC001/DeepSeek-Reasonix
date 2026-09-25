@@ -276,15 +276,29 @@ func verifyLegacySessionContinuity(ctx context.Context, report fixtureReport, re
 	if err != nil {
 		return err
 	}
-	// The restored legacy tab is intentionally not imported. Its final shutdown
-	// snapshot may rewrite JSONL bytes, so verify authored content and identity.
-	if len(state.SourceMappings) != 0 || len(state.Workspaces[workspacestate.GlobalWorkspaceID].SessionIDs) != 0 || len(state.PendingOperations) != 0 {
-		return errors.New("startup imported or recreated the legacy session")
+	// Startup alone never imports the restored legacy tab; the restart launch
+	// asks the banner to prepare it, which imports it into one session. The
+	// JSONL bytes may be rewritten by shutdown, so authored content is checked.
+	switch phase {
+	case "first":
+		if len(state.SourceMappings) != 0 || len(state.Workspaces[workspacestate.GlobalWorkspaceID].SessionIDs) != 0 || len(state.PendingOperations) != 0 {
+			return errors.New("startup imported or recreated the legacy session")
+		}
+		if err := verifyRestoredLegacyTab(report); err != nil {
+			return err
+		}
+	case "restart":
+		sessionID, err := verifyPreparedImport(&state, report)
+		if err != nil {
+			return err
+		}
+		if err := verifyPreparedTab(report, sessionID); err != nil {
+			return err
+		}
+	default:
+		return errors.New("--phase must be first or restart")
 	}
 	if err := verifyLegacyHistory(report.LegacyPath, fixtureQuestion, report.VisibleText); err != nil {
-		return err
-	}
-	if err := verifyRestoredLegacyTab(report); err != nil {
 		return err
 	}
 	for path, marker := range map[string]string{config.DesktopTopicStatePath(""): "global", config.DesktopTopicStatePath(report.ProjectRoot): "project"} {
@@ -308,6 +322,50 @@ func verifyLegacySessionContinuity(ctx context.Context, report fixtureReport, re
 		}
 	}
 	return writeJSON(resultPath, map[string]any{"phase": phase, "version": state.Version, "legacyPath": report.LegacyPath, "history": report.VisibleText, "topicBackups": 2, "unknownData": "preserved", "verifiedAt": time.Now().UTC()})
+}
+
+// verifyPreparedImport returns the one global session the legacy source became.
+func verifyPreparedImport(state *workspacestate.State, report fixtureReport) (string, error) {
+	if len(state.SourceMappings) != 1 {
+		return "", fmt.Errorf("source mappings=%d, want exactly the legacy source", len(state.SourceMappings))
+	}
+	var mapping workspacestate.SourceMapping
+	for _, only := range state.SourceMappings {
+		mapping = only
+	}
+	if mapping.Format != "legacy" || agent.CanonicalSessionPath(mapping.Path) != agent.CanonicalSessionPath(report.LegacyPath) {
+		return "", fmt.Errorf("imported source %q (%s) is not the fixture legacy session", mapping.Path, mapping.Format)
+	}
+	sessions := state.Workspaces[workspacestate.GlobalWorkspaceID].SessionIDs
+	if mapping.SessionID == "" || mapping.WorkspaceID != workspacestate.GlobalWorkspaceID || len(sessions) != 1 || sessions[0] != mapping.SessionID {
+		return "", fmt.Errorf("imported session %q in %q, global sessions=%v", mapping.SessionID, mapping.WorkspaceID, sessions)
+	}
+	for id, op := range state.PendingOperations {
+		if op.Phase != "committed" {
+			return "", fmt.Errorf("operation %s left open in phase %q", id, op.Phase)
+		}
+	}
+	return mapping.SessionID, nil
+}
+
+func verifyPreparedTab(report fixtureReport, sessionID string) error {
+	var saved struct {
+		ActiveTab string `json:"activeTab"`
+		Tabs      []struct {
+			ID        string `json:"id"`
+			TopicID   string `json:"topicId"`
+			SessionID string `json:"sessionId"`
+		} `json:"tabs"`
+	}
+	if err := readJSON(filepath.Join(config.ReasonixHomeDir(), "desktop-tabs.json"), &saved); err != nil {
+		return err
+	}
+	for _, tab := range saved.Tabs {
+		if tab.ID == saved.ActiveTab && tab.TopicID == report.TopicID && tab.SessionID == sessionID {
+			return nil
+		}
+	}
+	return errors.New("active tab does not carry the imported session and its topic")
 }
 
 func verifyLegacyHistory(path, question, answer string) error {

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"reasonix/desktop/internal/workspacestate"
 )
 
 func TestEncodeLegacyHistoryEscapesJSONContent(t *testing.T) {
@@ -80,6 +82,51 @@ func TestRunRestoresEnvironmentOnSuccessAndFailure(t *testing.T) {
 			if got := os.Getenv(key); got != "untouched-"+key {
 				t.Fatalf("%s leaked %s=%q", mode, key, got)
 			}
+		}
+	}
+}
+
+func TestVerifyPreparedImportRequiresOneCommittedLegacyImport(t *testing.T) {
+	legacy := filepath.Join(t.TempDir(), "sessions", fixtureSessionID+".jsonl")
+	report := fixtureReport{LegacyPath: legacy}
+	prepared := func() *workspacestate.State {
+		return &workspacestate.State{
+			Workspaces: map[string]workspacestate.Workspace{workspacestate.GlobalWorkspaceID: {SessionIDs: []string{"s1"}}},
+			SourceMappings: map[string]workspacestate.SourceMapping{"k": {
+				Path: filepath.Join(filepath.Dir(legacy), ".", filepath.Base(legacy)), Format: "legacy", SessionID: "s1", WorkspaceID: workspacestate.GlobalWorkspaceID,
+			}},
+			PendingOperations: map[string]workspacestate.Operation{"import": {Phase: "committed"}},
+		}
+	}
+	if id, err := verifyPreparedImport(prepared(), report); err != nil || id != "s1" {
+		t.Fatalf("committed legacy import = %q, %v", id, err)
+	}
+	for name, corrupt := range map[string]func(*workspacestate.State){
+		"not imported": func(s *workspacestate.State) { s.SourceMappings = nil },
+		"open operation": func(s *workspacestate.State) {
+			s.PendingOperations["import"] = workspacestate.Operation{Phase: "content_ready"}
+		},
+		"canonical format": func(s *workspacestate.State) {
+			m := s.SourceMappings["k"]
+			m.Format = "canonical"
+			s.SourceMappings["k"] = m
+		},
+		"other source": func(s *workspacestate.State) {
+			m := s.SourceMappings["k"]
+			m.Path += ".other"
+			s.SourceMappings["k"] = m
+		},
+		"extra session": func(s *workspacestate.State) {
+			s.Workspaces[workspacestate.GlobalWorkspaceID] = workspacestate.Workspace{SessionIDs: []string{"s1", "s2"}}
+		},
+		"session elsewhere": func(s *workspacestate.State) {
+			s.Workspaces[workspacestate.GlobalWorkspaceID] = workspacestate.Workspace{SessionIDs: []string{"s2"}}
+		},
+	} {
+		state := prepared()
+		corrupt(state)
+		if _, err := verifyPreparedImport(state, report); err == nil {
+			t.Errorf("%s passed prepared verification", name)
 		}
 	}
 }
