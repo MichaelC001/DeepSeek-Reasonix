@@ -1590,19 +1590,7 @@ func pickSessionToResume() (cliResumeTarget, int) {
 		fmt.Fprintln(os.Stderr, i18n.M.ResumeRequiresTTY)
 		return cliResumeTarget{}, 1
 	}
-	items := make([]menuItem, len(entries))
-	for i, s := range entries {
-		when := s.session.ModTime.Local().Format("01-02 15:04")
-		items[i] = menuItem{
-			name: when,
-			desc: sessionSummary(s.session),
-		}
-	}
-	idx, err := selectOne(i18n.M.PickSessionLabel, items)
-	if err != nil {
-		return cliResumeTarget{}, 1
-	}
-	return entries[idx].target, 0
+	return chooseResumeEntry(entries)
 }
 
 // selectLanguage is the wizard's first prompt: it shows the two UI languages

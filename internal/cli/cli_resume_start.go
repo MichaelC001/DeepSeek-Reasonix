@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -22,10 +23,9 @@ import (
 func headlessResumeTarget(resume string, cont, copySession bool) (cliResumeTarget, int) {
 	target := cliResumeTarget{}
 	if strings.TrimSpace(resume) != "" {
-		resolved, err := resolveSessionQuery(resolveCLISessionDir(), strings.TrimSpace(resume))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, i18n.M.ErrorPrefix, err)
-			return cliResumeTarget{}, 1
+		resolved, rc := resumeQueryTarget(resolveCLISessionDir(), strings.TrimSpace(resume), os.Stderr, nil)
+		if rc != 0 {
+			return cliResumeTarget{}, rc
 		}
 		target = resolved
 	}
@@ -52,10 +52,13 @@ func interactiveResumeTarget(resumeValue string, cont, copySession bool) (cliRes
 		}
 		target = picked
 	case resumeValue != "":
-		resolved, err := resolveSessionQuery(resolveCLISessionDir(), resumeValue)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, i18n.M.ErrorPrefix, err)
-			return cliResumeTarget{}, 1
+		var choose func([]resumeEntry) (cliResumeTarget, int)
+		if isInteractive() {
+			choose = chooseResumeEntry
+		}
+		resolved, rc := resumeQueryTarget(resolveCLISessionDir(), resumeValue, os.Stderr, choose)
+		if rc != 0 {
+			return cliResumeTarget{}, rc
 		}
 		target = resolved
 	case cont:
@@ -66,6 +69,55 @@ func interactiveResumeTarget(resumeValue string, cont, copySession bool) (cliRes
 		target = continued
 	}
 	return target, copySessionExitCode(copySession, target)
+}
+
+// resumeQueryTarget resolves --resume QUERY in dir. A query matching several
+// conversations goes to choose when one is given; otherwise the candidates are
+// listed on w and the start fails.
+func resumeQueryTarget(dir, query string, w io.Writer, choose func([]resumeEntry) (cliResumeTarget, int)) (cliResumeTarget, int) {
+	target, err := resolveSessionQuery(dir, query)
+	if err == nil {
+		return target, 0
+	}
+	var ambiguous *ambiguousSessionQueryError
+	if errors.As(err, &ambiguous) && choose != nil {
+		return choose(ambiguous.matches)
+	}
+	fmt.Fprintln(w, i18n.M.ErrorPrefix, err)
+	if ambiguous != nil {
+		for _, entry := range ambiguous.matches {
+			fmt.Fprintf(w, "  %s  %s  %s\n", entry.session.ModTime.Local().Format("01-02 15:04"),
+				resumeEntryID(entry), sessionSummary(entry.session))
+		}
+		fmt.Fprintln(w, i18n.M.AmbiguousResumeHint)
+	}
+	return cliResumeTarget{}, 1
+}
+
+// chooseResumeEntry shows entries in the terminal menu and returns the pick.
+// The caller has already checked isInteractive.
+func chooseResumeEntry(entries []resumeEntry) (cliResumeTarget, int) {
+	items := make([]menuItem, len(entries))
+	for i, s := range entries {
+		when := s.session.ModTime.Local().Format("01-02 15:04")
+		items[i] = menuItem{
+			name: when,
+			desc: sessionSummary(s.session),
+		}
+	}
+	idx, err := selectOne(i18n.M.PickSessionLabel, items)
+	if err != nil {
+		return cliResumeTarget{}, 1
+	}
+	return entries[idx].target, 0
+}
+
+// resumeEntryID is the identity --resume matches exactly for entry.
+func resumeEntryID(entry resumeEntry) string {
+	if entry.target.canonical() {
+		return entry.target.ref.SessionID
+	}
+	return agent.BranchID(entry.target.path)
 }
 
 // normalizedResumeFlag maps the bare-flag spellings of --resume onto the
