@@ -6,6 +6,7 @@ import (
 
 	"reasonix/internal/agent"
 	"reasonix/internal/boot"
+	"reasonix/internal/control"
 	"reasonix/internal/event"
 	"reasonix/internal/evidence"
 	goaldomain "reasonix/internal/goal"
@@ -18,7 +19,11 @@ func (a *App) metaForTab(tabID string) Meta {
 		tab := a.tabByIDLocked(tabID)
 		snap := snapshotTabRuntimeLocked(tab)
 		runtimeView := a.sessionRuntimeViewLocked(tab)
-		historical := tabHistoricalSourceLocked(tab)
+		var historical *SessionSourceRef
+		headID := ""
+		if tab != nil {
+			historical, headID = tab.HistoricalSource, tab.SessionHeadID
+		}
 		a.mu.RUnlock()
 		if tab == nil {
 			meta := Meta{EventChannel: eventChannel}
@@ -57,6 +62,14 @@ func (a *App) metaForTab(tabID string) Meta {
 			}
 		}
 		sessionPath := strings.TrimSpace(snap.sessionPath)
+		// Read off the lock, like every other controller read in this function.
+		if native, ok := snap.ctrl.(*control.Controller); ok && historical == nil {
+			path := sessionPath
+			if path == "" {
+				path = native.SessionPath()
+			}
+			historical = nativeHistoricalSource(native, path, headID)
+		}
 		sessionID := strings.TrimSpace(snap.sessionID)
 		var sessionRef *session.SessionRef
 		if sessionID != "" {
