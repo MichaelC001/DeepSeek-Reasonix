@@ -334,6 +334,50 @@ export function checkEntryModes(rows, kind) {
   return errors;
 }
 
+const PT_INTERP = 3;
+
+// Returns the program interpreter an ELF executable names, or null for a static
+// one. Only the Electron shell may carry a glibc floor: a Go binary that names
+// ld.so inherits the build runner's glibc and fails to start on older systems.
+export function elfInterpreter(bytes) {
+  if (bytes.length < 52 || bytes.readUInt32BE(0) !== 0x7f454c46) throw new Error("not an ELF file");
+  const wide = bytes[4] === 2;
+  const little = bytes[5] === 1;
+  if (bytes[4] !== 1 && !wide) throw new Error(`unknown ELF class ${bytes[4]}`);
+  if (bytes[5] !== 2 && !little) throw new Error(`unknown ELF data encoding ${bytes[5]}`);
+  const u16 = (at) => (little ? bytes.readUInt16LE(at) : bytes.readUInt16BE(at));
+  const u32 = (at) => (little ? bytes.readUInt32LE(at) : bytes.readUInt32BE(at));
+  const word = (at) => (wide ? Number(little ? bytes.readBigUInt64LE(at) : bytes.readBigUInt64BE(at)) : u32(at));
+  if (wide && bytes.length < 64) throw new Error("truncated ELF header");
+  const phoff = word(wide ? 32 : 28);
+  const phentsize = u16(wide ? 54 : 42);
+  const phnum = u16(wide ? 56 : 44);
+  for (let i = 0; i < phnum; i++) {
+    const header = phoff + i * phentsize;
+    if (header + phentsize > bytes.length) throw new Error("truncated ELF program header table");
+    if (u32(header) !== PT_INTERP) continue;
+    const offset = word(header + (wide ? 8 : 4));
+    const size = word(header + (wide ? 32 : 16));
+    if (offset + size > bytes.length) throw new Error("truncated ELF interpreter path");
+    return bytes.toString("latin1", offset, offset + size).replace(/\0+$/, "");
+  }
+  return null;
+}
+
+const LINUX_GO_MEMBERS = {
+  "linux-tar": ["reasonix-desktop", "reasonix-launcher", "reasonix-guard", "reasonix"],
+  "linux-deb": ["usr/bin/reasonix-desktop", "usr/bin/reasonix-launcher", "usr/bin/reasonix", "usr/lib/reasonix/reasonix-update-helper"],
+};
+
+export function checkStaticGoMembers(kind, readMember) {
+  const errors = [];
+  for (const name of LINUX_GO_MEMBERS[kind] ?? []) {
+    const interpreter = elfInterpreter(readMember(name));
+    if (interpreter !== null) errors.push(`${name} is dynamically linked (interpreter ${interpreter}); Linux Go binaries must be built with CGO_ENABLED=0`);
+  }
+  return errors;
+}
+
 export function validateMacServiceLink(appDir) {
   const link = join(appDir, "Contents", "MacOS", PRODUCT.serviceExecutable);
   const expectedTarget = `../Resources/service/${PRODUCT.serviceExecutable}`;
