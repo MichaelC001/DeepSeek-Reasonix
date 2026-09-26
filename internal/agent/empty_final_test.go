@@ -227,3 +227,66 @@ func BenchmarkHasVisibleFinalAnswer(b *testing.B) {
 		})
 	}
 }
+
+func reasoningOnlyStop(text string) []provider.Chunk {
+	return []provider.Chunk{
+		{Type: provider.ChunkReasoning, Text: text},
+		{Type: provider.ChunkUsage, Usage: &provider.Usage{FinishReason: "stop", TotalTokens: 10}},
+		{Type: provider.ChunkDone},
+	}
+}
+
+func countUserMessagesContaining(s *Session, needle string) int {
+	n := 0
+	for _, message := range s.Messages {
+		if message.Role == provider.RoleUser && strings.Contains(message.Content, needle) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestRunRetriesReasoningOnlyStopAfterToolRoundOnce(t *testing.T) {
+	prov := &scriptedProvider{name: "p", turns: [][]provider.Chunk{
+		{{Type: provider.ChunkReasoning, Text: "read the file"}, toolCallChunk("call-1", "read_file", `{}`), {Type: provider.ChunkUsage, Usage: &provider.Usage{FinishReason: "tool_calls", TotalTokens: 10}}, {Type: provider.ChunkDone}},
+		reasoningOnlyStop("I have the file contents; the answer is ready."),
+		{{Type: provider.ChunkText, Text: "The file says contents."}, {Type: provider.ChunkDone}},
+	}}
+	reg := tool.NewRegistry()
+	reg.Add(fakeReadFileTool{})
+	a := New(deepseekThinkingProvider{prov}, reg, NewSession(""), Options{}, event.Discard)
+
+	if err := a.Run(context.Background(), "what does the file say"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if prov.call != 3 {
+		t.Fatalf("provider calls = %d, want tool round + reasoning-only stop + one retry", prov.call)
+	}
+	if got := countUserMessagesContaining(a.sess.conversation, "visible answer"); got != 1 {
+		t.Fatalf("visible-answer retries = %d, want exactly 1", got)
+	}
+	if got := lastAssistantContent(a.sess.conversation); got != "The file says contents." {
+		t.Fatalf("last assistant content = %q, want the visible synthesis", got)
+	}
+}
+
+func TestRunAcceptsSecondReasoningOnlyStopAfterToolRound(t *testing.T) {
+	prov := &scriptedProvider{name: "p", turns: [][]provider.Chunk{
+		{{Type: provider.ChunkReasoning, Text: "read the file"}, toolCallChunk("call-1", "read_file", `{}`), {Type: provider.ChunkUsage, Usage: &provider.Usage{FinishReason: "tool_calls", TotalTokens: 10}}, {Type: provider.ChunkDone}},
+		reasoningOnlyStop("done thinking"),
+		reasoningOnlyStop("still only thinking"),
+	}}
+	reg := tool.NewRegistry()
+	reg.Add(fakeReadFileTool{})
+	a := New(deepseekThinkingProvider{prov}, reg, NewSession(""), Options{}, event.Discard)
+
+	if err := a.Run(context.Background(), "what does the file say"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if prov.call != 3 {
+		t.Fatalf("provider calls = %d, want a single bounded retry", prov.call)
+	}
+	if got := countUserMessagesContaining(a.sess.conversation, "visible answer"); got != 1 {
+		t.Fatalf("visible-answer retries = %d, want exactly 1", got)
+	}
+}

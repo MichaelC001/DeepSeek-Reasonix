@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -323,21 +324,20 @@ func (a *Agent) handleFinalResponse(ctx context.Context, state *turnRuntime, tex
 		return false, a.gracePause(state)
 	}
 	if !hasVisibleFinalAnswer(text) {
-		// Harness-style termination accepts a reasoning-only clean stop. Only
-		// explicit internal callers that require visible output retain the
-		// bounded synthetic retry below. A truly empty response is classified
-		// before this function and retried with the frozen provider request.
+		// A reasoning-only clean stop ends the turn, except where it would leave
+		// tool results with no visible synthesis: that case, and callers that
+		// require visible output, get the bounded synthetic retry. A truly empty
+		// response is classified before this function and retried unchanged.
 		if a.requireVisibleFinal {
 			state.terminal.emptyFinalBlocks++
 			if state.terminal.emptyFinalBlocks >= maxEmptyFinalBlocks {
 				return false, fmt.Errorf("model finished without a visible final answer %d times", state.terminal.emptyFinalBlocks)
 			}
-			a.svc.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo, Code: event.NoticeCodeEmptyFinal, Text: emptyFinalNotice(), Detail: emptyFinalNoticeDetail(a.svc.prov.Name(), usage, len(reasoning))})
-			if err := a.appendCommittedMessages(ctx, "empty-final-retry", HostGeneratedUserMessage(a.withTurnPreferences(emptyFinalRetryMessage()))); err != nil {
-				return false, err
-			}
-			a.contextManager().ObserveUsage(usage)
-			return true, nil
+			return a.retryEmptyFinal(ctx, reasoning, usage)
+		}
+		if state.usedAnyTool && state.terminal.emptyFinalBlocks == 0 && silentSinceLastToolRound(a.sess.conversation.Messages) {
+			state.terminal.emptyFinalBlocks++
+			return a.retryEmptyFinal(ctx, reasoning, usage)
 		}
 	}
 	a.emitTurnShadows(a.turn.turnInput)
@@ -350,6 +350,34 @@ func (a *Agent) handleFinalResponse(ctx context.Context, state *turnRuntime, tex
 	a.contextManager().ObserveUsage(usage)
 	a.closeTurnPhase()
 	return false, nil // model gave a final answer
+}
+
+func (a *Agent) retryEmptyFinal(ctx context.Context, reasoning string, usage *provider.Usage) (cont bool, err error) {
+	a.svc.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo, Code: event.NoticeCodeEmptyFinal, Text: emptyFinalNotice(), Detail: emptyFinalNoticeDetail(a.svc.prov.Name(), usage, len(reasoning))})
+	if err := a.appendCommittedMessages(ctx, "empty-final-retry", HostGeneratedUserMessage(a.withTurnPreferences(emptyFinalRetryMessage()))); err != nil {
+		return false, err
+	}
+	a.contextManager().ObserveUsage(usage)
+	return true, nil
+}
+
+// silentSinceLastToolRound reports whether the transcript holds a tool result
+// with no visible assistant text after it.
+func silentSinceLastToolRound(messages []provider.Message) bool {
+	for _, message := range slices.Backward(messages) {
+		if message.LocalOnly {
+			continue
+		}
+		switch message.Role {
+		case provider.RoleTool:
+			return true
+		case provider.RoleAssistant:
+			if hasVisibleFinalAnswer(message.Content) {
+				return false
+			}
+		}
+	}
+	return false
 }
 
 // handleToolRound executes a tool batch, persists tool messages, handles
