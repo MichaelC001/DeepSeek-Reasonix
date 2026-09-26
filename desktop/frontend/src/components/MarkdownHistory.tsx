@@ -17,7 +17,10 @@ const Block = memo(function Block({ block, components }: { block: MarkdownBlock;
 
 let nextWorkerDocumentId = 1;
 
-/** Worker parsing is independent of viewport geometry. Every block uses natural flow. */
+/**
+ * Worker parsing is independent of viewport geometry. Every block uses natural flow.
+ * cacheKey opts a row into the shared parse cache, which is addressed by content.
+ */
 const MarkdownHistory = memo(function MarkdownHistory({ text, streaming = false, plainStatusBlocks = false, cacheKey, fallback, onParsed, onError }: {
   text: string; streaming?: boolean; plainStatusBlocks?: boolean; cacheKey?: string; fallback: ReactNode;
   onParsed?: () => void; onError?: () => void;
@@ -43,8 +46,8 @@ const MarkdownHistory = memo(function MarkdownHistory({ text, streaming = false,
   }, [visible]);
   const components = useMemo(() => createComponents(plainStatusBlocks), [plainStatusBlocks]);
   const cached = useMemo(
-    () => (!streaming && cacheKey ? getTranscriptStore().getMarkdown(cacheKey, revision) : undefined),
-    [cacheKey, revision, streaming],
+    () => (!streaming && cacheKey ? getTranscriptStore().getMarkdown(text, revision) : undefined),
+    [cacheKey, revision, streaming, text],
   );
   useEffect(() => {
     const client = getMarkdownWorkerClient();
@@ -70,7 +73,7 @@ const MarkdownHistory = memo(function MarkdownHistory({ text, streaming = false,
         stable[index]?.key === block.key && stable[index]?.fingerprint === block.fingerprint ? stable[index] : block);
       previous.current = result;
       setParsed({ text, result });
-      if (cacheKey && !streaming) getTranscriptStore().setMarkdown(cacheKey, revision, {
+      if (cacheKey && !streaming) getTranscriptStore().setMarkdown(revision, {
         source: text, blocks: result.blocks, selectionText: result.selectionText,
         selectionRevision: result.selectionRevision,
         bytes: text.length * 2 + result.selectionText.length * 2 + estimateHastBytes(result.blocks),

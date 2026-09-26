@@ -27,8 +27,8 @@ Object.assign(globalThis, { Worker: class {} });
 worker.setMarkdownWorkerClientForTest(new worker.MarkdownWorkerClient({ createWorker: async () => fake }));
 const host = document.getElementById("root")!;
 let root = createRoot(host);
-async function render(text: string, streaming = false, onError?: () => void) {
-  await act(async () => root.render(<LocaleProvider><History text={text} streaming={streaming} cacheKey="natural-markdown" fallback={<div>{text}</div>} onError={onError} /></LocaleProvider>));
+async function render(text: string, streaming = false, onError?: () => void, cacheKey = "p3") {
+  await act(async () => root.render(<LocaleProvider><History text={text} streaming={streaming} cacheKey={cacheKey} fallback={<div>{text}</div>} onError={onError} /></LocaleProvider>));
 }
 async function respond(index: number) {
   const call = calls[index]; assert.ok(call);
@@ -51,6 +51,9 @@ try {
   await act(async () => root.unmount()); root = createRoot(host);
   await render(final);
   assert.equal(calls.length, 3, "cache avoids parsing unchanged history");
+  await act(async () => root.unmount()); root = createRoot(host);
+  await render(final, false, undefined, "m:msg-1");
+  assert.equal(calls.length, 3, "a row re-keyed by the history projection reuses the parse of the same text");
   assert.ok(host.querySelector("strong"));
   await render("obsolete source"); const old = calls.length - 1;
   await render("replacement source");
