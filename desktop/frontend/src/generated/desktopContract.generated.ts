@@ -3,7 +3,7 @@
 
 export const DESKTOP_PROTOCOL_VERSION = 11;
 
-export const DESKTOP_CONTRACT_DIGEST = "sha256:210f66b66e33ec4c371de07c74cfd69d22a831b23cbf6ef5dd44f2b156689241";
+export const DESKTOP_CONTRACT_DIGEST = "sha256:708644fdd257d12e8503acba2978d609d80ec00c585cf1777e6e9025fc1ee39b";
 
 export const DESKTOP_COMMANDS = [
   "AIRenameSession",
@@ -3876,6 +3876,8 @@ export interface RemoteSessionView {
   current?: boolean;
   running?: boolean;
   lastActivityAt?: number;
+  resultSequence?: number | null;
+  metadataReady?: boolean;
   pinned?: boolean;
 }
 
