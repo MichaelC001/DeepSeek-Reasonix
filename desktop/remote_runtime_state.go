@@ -143,6 +143,9 @@ type remoteRuntimeTarget struct {
 	client         *http.Client
 	states         map[string]event.RuntimeStateSnapshot
 	unknown        map[string]uint64
+	// pathRevision fences a payload observed before a session switch: it cannot
+	// speak for the route the tab shows now.
+	pathRevision uint64
 }
 type remoteRuntimeConnection struct {
 	id, key, base string
@@ -176,7 +179,10 @@ func (a *App) SyncRuntimeState() (RuntimeStateProjection, error) {
 		conn.id, conn.key, conn.base, conn.client = id, key, tab.base, tab.client
 		states := map[string]event.RuntimeStateSnapshot{}
 		maps.Copy(states, tab.runtimeStates)
-		conn.targets = append(conn.targets, remoteRuntimeTarget{id, tab.gen, tab.selectionRevision, tab.client, states, maps.Clone(tab.runtimeUnknown)})
+		conn.targets = append(conn.targets, remoteRuntimeTarget{
+			id: id, gen: tab.gen, selection: tab.selectionRevision, client: tab.client,
+			states: states, unknown: maps.Clone(tab.runtimeUnknown), pathRevision: tab.routing.pathRevision,
+		})
 		connections[key] = conn
 	}
 	a.remoteTabMu.Unlock()
@@ -198,7 +204,7 @@ func (a *App) markRemoteRuntimeSyncFailed(targets []remoteRuntimeTarget, failed 
 	a.remoteTabMu.Lock()
 	defer a.remoteTabMu.Unlock()
 	for _, target := range targets {
-		if tab := a.remoteTabs[target.id]; tab != nil && tab.gen == target.gen && tab.client == target.client && tab.selectionRevision == target.selection {
+		if tab := a.remoteTabs[target.id]; tab != nil && tab.gen == target.gen && tab.client == target.client && tab.selectionRevision == target.selection && tab.routing.pathRevision == target.pathRevision && tab.routing.rehydratingPath == "" {
 			tab.runtime.syncFailed = failed
 			if failed {
 				markRemoteRuntimeUnknownLocked(tab, tab.routing.currentPath)
@@ -284,7 +290,7 @@ func (a *App) applyRemoteRuntimeSnapshot(conn remoteRuntimeConnection, states ma
 	defer a.remoteTabMu.Unlock()
 	for _, target := range conn.targets {
 		tab := a.remoteTabs[target.id]
-		if tab == nil || tab.base != conn.base || tab.gen != target.gen || tab.client != target.client || tab.selectionRevision != target.selection || tab.routing.rehydratingPath != "" {
+		if tab == nil || tab.base != conn.base || tab.gen != target.gen || tab.client != target.client || tab.selectionRevision != target.selection || tab.routing.pathRevision != target.pathRevision || tab.routing.rehydratingPath != "" {
 			continue
 		}
 		tab.runtime.syncFailed = false
@@ -304,6 +310,9 @@ func (a *App) applyRemoteRuntimeSnapshot(conn remoteRuntimeConnection, states ma
 			}
 			acceptRemoteRuntimeStateLocked(tab, path, state, true)
 		}
+		// Only a request for this route can retire background rows or declare the
+		// selected session missing. The route fence above also applies to
+		// success/failure flags, so an old GET cannot poison a newer SSE state.
 		if !seen[tab.routing.currentPath] && reflect.DeepEqual(tab.runtimeStates[tab.routing.currentPath], target.states[tab.routing.currentPath]) {
 			markRemoteRuntimeUnknownLocked(tab, tab.routing.currentPath)
 		}
