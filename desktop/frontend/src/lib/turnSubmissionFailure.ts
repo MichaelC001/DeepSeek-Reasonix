@@ -124,3 +124,13 @@ export async function findTabAfterSubmitFailure(
   }
   return undefined;
 }
+
+export function reduceSubmitUnknown(s: State, submissionId: string, error: string): State {
+  const local = s.localSubmissions[submissionId];
+  if (!local || local.settled || local.status === "failed") return s;
+  const ownsRequest = s.pendingSubmissionId === submissionId;
+  const ownsTurn = !s.pendingSubmissionId && s.activeTurnId && local.turnId === s.activeTurnId;
+  return updateLocalSubmission(ownsRequest || ownsTurn ? {
+    ...s, transcriptConnection: "disconnected", transcriptConnectionError: error,
+  } : s, submissionId, { status: "unknown" });
+}

@@ -31,7 +31,7 @@ func TestRemoteSubmitRacingRouteChangeRetriesThenReportsTransient(t *testing.T) 
 	ctrl := control.New(control.Options{SessionDir: dir, SessionPath: path, Runner: runner, Sink: sink})
 	server := httptest.NewServer(operatorServeHandler(serve.New(ctrl, nil, config.ServeConfig{})))
 	defer server.Close()
-	defer ctrl.Close()
+	t.Cleanup(func() { closeRemoteTestController(t, ctrl) })
 
 	a, tab := remoteRuntimeTestApp(server.Client())
 	a.ctx = context.Background()

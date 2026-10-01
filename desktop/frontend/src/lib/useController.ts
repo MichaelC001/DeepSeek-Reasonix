@@ -30,7 +30,7 @@ import type { MessageActionScope, MessageActionState } from "./messageActions";
 import { mergeRateBand, type AggregatedRateBand } from "./costRateBand";
 import { requestSessionCancel, type CancelOutcome } from "./inboxCancel";
 import { normalizeTurnSubmit, resolveActiveTurnId } from "./inboxSubmit";
-import { findTabAfterSubmitFailure, reduceManagementConfirmation, reduceSubmitFailure, reduceSubmitQueued } from "./turnSubmissionFailure";
+import { findTabAfterSubmitFailure, reduceManagementConfirmation, reduceSubmitFailure, reduceSubmitQueued, reduceSubmitUnknown } from "./turnSubmissionFailure";
 import {
   checkpointLocalSubmission,
   settleLocalSubmissions,
@@ -1950,15 +1950,7 @@ function reduceState(s: State, a: Action): State {
     case "turn_submit_rejected":
     case "send_failed": return reduceSubmitFailure(s, a.submissionId, a.error, a.type === "turn_submit_rejected", promptEventClock());
     case "send_queued": return reduceSubmitQueued(s, a.submissionId, promptEventClock());
-    case "turn_submit_unknown": {
-      const local = s.localSubmissions[a.submissionId];
-      if (!local || local.settled || local.status === "failed") return s;
-      const ownsRequest = s.pendingSubmissionId === a.submissionId;
-      const ownsTurn = !s.pendingSubmissionId && s.activeTurnId && local.turnId === s.activeTurnId;
-      return updateLocalSubmission(ownsRequest || ownsTurn ? {
-        ...s, transcriptConnection: "disconnected", transcriptConnectionError: a.error,
-      } : s, a.submissionId, { status: "unknown" });
-    }
+    case "turn_submit_unknown": return reduceSubmitUnknown(s, a.submissionId, a.error);
     case "turn_interrupted": {
       return withRemoteTurnInterrupted(s);
     }

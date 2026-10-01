@@ -1,4 +1,5 @@
-import { emptyComposerDraft, persistentComposerDraft, persistentSnapshot } from "./composerDraftState";
+import { clipboardFiles, clipboardHasImageHint, isPasteShortcut, dataURLHash } from "../lib/composerClipboard";
+import { composerDraftFingerprint, emptyComposerDraft, persistentComposerDraft, persistentSnapshot } from "./composerDraftState";
 import { SessionInputRecovery } from "./SessionInputRecovery";
 import { recoveryStatusText, type RecoveryRetry } from "../lib/recoveryStatus";
 import { useRuntimeSession } from "../lib/useRuntimeState";
@@ -23,7 +24,7 @@ import type { ComposerTarget } from "../generated/desktopContract.generated";
 import { desktopHost } from "../lib/desktopHost";
 import { steerInboxItemForActiveTurn } from "../lib/inboxSubmit";
 import { formatInboxError, isInboxItemMissing } from "../lib/inboxError";
-import { TRANSIENT_GUIDANCE_RETRY_DELAYS_MS, isTransientInboxTargetError } from "../lib/transientInboxTarget";
+import { captureStableInboxTarget, createTransientGuidance } from "../lib/transientComposerGuidance";
 import { inboxScopeKey } from "../lib/composerInboxQueue";
 import { useComposerInboxRefresh } from "../lib/useComposerInboxRefresh";
 import { useComposerImeGuard } from "../lib/useComposerImeGuard";
@@ -287,46 +288,6 @@ function attachmentDedupFromKeys(keys: Record<string, AttachmentDedupKey>): Dedu
 
 function draftHasAttachmentDedupKey(draft: ComposerDraft, key: AttachmentDedupKey): boolean {
   return Object.values(draft.attachmentDedupKeys).some((existing) => existing.hash === key.hash && existing.source === key.source);
-}
-
-function fileKey(file: File): string {
-  return `${file.name}:${file.type}:${file.size}:${file.lastModified}`;
-}
-
-function clipboardFiles(data: DataTransfer): File[] {
-  const files = Array.from(data.files);
-  const seen = new Set(files.map(fileKey));
-  for (const item of Array.from(data.items)) {
-    if (item.kind !== "file") continue;
-    const file = item.getAsFile();
-    if (!file) continue;
-    const key = fileKey(file);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    files.push(file);
-  }
-  return files;
-}
-
-function clipboardHasImageHint(data: DataTransfer): boolean {
-  const imageType = (value: string) => {
-    const type = value.toLowerCase();
-    return type.startsWith("image/") || type.includes("png") || type.includes("jpeg") || type.includes("jpg") || type.includes("tiff");
-  };
-  return Array.from(data.items).some((item) => imageType(item.type)) || Array.from(data.types).some(imageType);
-}
-
-function isPasteShortcut(e: KeyboardEvent<HTMLElement>): boolean {
-  return e.key.toLowerCase() === "v" && (e.metaKey || e.ctrlKey) && !e.altKey;
-}
-
-async function dataURLHash(dataUrl: string): Promise<string> {
-  try {
-    const res = await fetch(dataUrl);
-    return sha256(await res.blob());
-  } catch {
-    return "";
-  }
 }
 
 function composerMaxHeight(): number {
@@ -2077,15 +2038,9 @@ export function Composer({
     showToast(text, "warn");
   }, [showToast, t]);
 
-  const followupDraftFingerprint = (key: string): string => {
-    const draft = key === activeDraftKeyRef.current ? {
-      text: textRef.current, invocations: invocationsRef.current, attachments: attachmentsRef.current,
-      workspaceRefs: workspaceRefsRef.current, sessionRefs: sessionRefsRef.current,
-      selectedTextRefs: selectedTextRefsRef.current, pastedBlocks: pastedBlocksRef.current,
-    } : draftsBySessionRef.current[key] ?? emptyComposerDraft();
-    return JSON.stringify([draft.text, draft.invocations, draft.attachments, draft.workspaceRefs,
-      draft.sessionRefs, draft.selectedTextRefs, draft.pastedBlocks]);
-  };
+  const followupDraftFingerprint = (key: string): string => composerDraftFingerprint(
+    key === activeDraftKeyRef.current ? snapshotComposerDraft() : draftsBySessionRef.current[key] ?? emptyComposerDraft(),
+  );
 
   const submit = (guideCurrent = false) => trackPersistentTask(activeDraftKeyRef.current, performSubmit(guideCurrent));
   const performSubmit = async (guideCurrent = false, modelChoice?:ModelApplicationChoice) => {
@@ -2162,94 +2117,11 @@ export function Composer({
     let submittedDisplayText = "";
     let submittedSubmitText = "";
     let submittedStructured: StructuredInvocationSubmit | undefined;
-    // A transient target fence (session switching/reconnecting) clears by
-    // itself. Hold the message under its pending-followup identity and retry
-    // briefly with a freshly captured target, instead of failing it with an
-    // error the user cannot act on. Pending requests stay visible through the
-    // unresolved-submission banner until they land in the durable queue.
-    const retryTransientGuidanceEnqueue = (
-      request: PendingFollowup,
-      options: {
-        pendingKey: string;
-        submitDraftKey: string;
-        submitTabId: string;
-        sessionPath: string;
-        submittedDraft: string;
-        queueOnly: boolean;
-        turnId?: string;
-      },
-    ) => {
-      if (transientRetriesRef.current.has(request.key)) return;
-      const token = { cancelled: false };
-      transientRetriesRef.current.set(request.key, token);
-      void (async () => {
-        const [{ enqueueComposerGuidance }, { TRANSIENT_GUIDANCE_RETRY_DELAYS_MS }] = await Promise.all([
-          import("../lib/inboxGuidanceSubmit"),
-          import("../lib/transientInboxTarget"),
-        ]);
-        for (const delayMs of TRANSIENT_GUIDANCE_RETRY_DELAYS_MS) {
-          await new Promise((resolve) => window.setTimeout(resolve, delayMs));
-          if (token.cancelled || transientRetriesRef.current.get(request.key) !== token) return;
-          // The user moved to another session: leave the pending request for
-          // that session's own reconciliation instead of retrying a gone route.
-          if (options.pendingKey !== pendingKeyRef.current) {
-            transientRetriesRef.current.delete(request.key);
-            return;
-          }
-          try {
-            const target = app.CaptureInboxTarget
-              ? await app.CaptureInboxTarget(options.submitTabId, options.sessionPath)
-              : undefined;
-            const receipt = await enqueueComposerGuidance(app, { ...request, target }, options.queueOnly, options.turnId);
-            if (receipt?.error) throw new Error(receipt.error);
-            if (!receipt?.itemId) throw new Error("Follow-up receipt unconfirmed");
-            pendingFollowups.clear(options.pendingKey, request);
-            if (followupDraftFingerprint(options.submitDraftKey) === options.submittedDraft) clearSubmittedDraft(options.submitDraftKey);
-            setGuidanceRetryNonce((value) => value + 1);
-            showToast(t("runtime.queued"), "info");
-            transientRetriesRef.current.delete(request.key);
-            return;
-          } catch (error) {
-            if (isTransientInboxTargetError(error)) continue;
-            // A permanent refusal is actionable: surface it and drop the hold.
-            pendingFollowups.clear(options.pendingKey, request);
-            showToast(formatInboxError(error, locale), "warn");
-            transientRetriesRef.current.delete(request.key);
-            return;
-          }
-        }
-        // The window outlasted the bound: keep the pending request so its
-        // banner stays visible and a later send reconciles the receipt.
-        if (transientRetriesRef.current.get(request.key) === token) transientRetriesRef.current.delete(request.key);
-      })();
-    };
-    const holdTransientGuidance = (
-      error: unknown,
-      input: { display: string; submit: string; structured?: StructuredInvocationSubmit; turnId?: string },
-    ): boolean => {
-      if (!isTransientInboxTargetError(error)) return false;
-      if (!submitPendingKey) return false;
-      const existing = pendingFollowups.get(submitPendingKey);
-      const request: PendingFollowup = existing ?? {
-        key: `followup-${crypto.randomUUID()}`,
-        tabId: submitTabId || "",
-        display: input.display,
-        submit: input.submit,
-        structured: input.structured,
-        draft: submittedDraft,
-      };
-      pendingFollowups.set(submitPendingKey, request);
-      retryTransientGuidanceEnqueue(request, {
-        pendingKey: submitPendingKey,
-        submitDraftKey,
-        submitTabId: submitTabId || "",
-        sessionPath: inboxSessionPath || "",
-        submittedDraft,
-        queueOnly,
-        turnId: input.turnId,
-      });
-      return true;
-    };
+    const holdTransientGuidance = createTransientGuidance({
+      app, transientRetriesRef, pendingKeyRef, submitPendingKey, submitDraftKey, submitTabId,
+      inboxSessionPath, submittedDraft, queueOnly, followupDraftFingerprint, clearSubmittedDraft,
+      setGuidanceRetryNonce, showToast, t, locale,
+    });
     try {
       submissionCapture = onCaptureSubmit?.(persistentSnapshot(snapshotComposerDraft()));
       if (onCaptureSubmit && !submissionCapture) return;
@@ -2259,21 +2131,7 @@ export function Composer({
         await restoreExternalFolderReferences(app, bridgeTarget, currentWorkspaceRefs);
       }
       if (queueOnly && !submitPendingKey) throw new Error("reasonix_error:inbox_not_submitted");
-      // The target fence rejects while the tab is switching or reconnecting.
-      // That window clears by itself, so wait it out inside the send instead of
-      // failing a message the user just typed.
-      let target: Awaited<ReturnType<NonNullable<typeof app.CaptureInboxTarget>>> | undefined;
-      if (running && app.CaptureInboxTarget) {
-        for (let attempt = 0; ; attempt++) {
-          try {
-            target = await app.CaptureInboxTarget(submitTabId || "", inboxSessionPath || "");
-            break;
-          } catch (error) {
-            if (!isTransientInboxTargetError(error) || attempt >= TRANSIENT_GUIDANCE_RETRY_DELAYS_MS.length) throw error;
-            await new Promise((resolve) => window.setTimeout(resolve, TRANSIENT_GUIDANCE_RETRY_DELAYS_MS[attempt]));
-          }
-        }
-      }
+      const target = running ? await captureStableInboxTarget(app, submitTabId || "", inboxSessionPath || "") : undefined;
       const orderedAttachments = sortComposerAttachments(currentAttachments);
       const refs = [
         ...currentWorkspaceRefs.map((ref) => formatWorkspaceReference(ref.path, ref.isDir)),

@@ -141,10 +141,8 @@ func (a *App) SubmitRemoteTabWithModelApplication(tabID, text, submissionID stri
 		}
 	}
 	if remoteBusySubmitError(err) {
-		// The previous turn is still finishing; queue the message as the visible
-		// durable follow-up the serve asks for instead of surfacing a conflict.
-		// A queued follow-up cannot carry the model application choice, but a
-		// lost choice beats a lost message.
+		// Busy submissions become durable follow-ups. The queue does not carry
+		// the per-submit model application choice; the message remains queued.
 		if queued, queueErr := a.queueBusyFollowup(tabID, text, submissionID); queueErr == nil {
 			return queued
 		}

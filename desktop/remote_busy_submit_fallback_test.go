@@ -32,7 +32,7 @@ func TestRemoteBusySubmitFallsBackToDurableInbox(t *testing.T) {
 	t.Cleanup(func() {
 		runner.release <- struct{}{}
 		runner.release <- struct{}{}
-		defer ctrl.Close()
+		closeRemoteTestController(t, ctrl)
 	})
 	server := httptest.NewServer(operatorServeHandler(serve.New(ctrl, nil, config.ServeConfig{})))
 	defer server.Close()
