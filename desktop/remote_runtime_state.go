@@ -91,6 +91,11 @@ func (a *App) acceptRemoteRuntimeFrame(tabID string, gen uint64, path string, fr
 		return
 	}
 	state, decodeErr := decodeRemoteRuntimeState(payload.State)
+	// Older Serve frames omit envelope identity while retaining it in the
+	// runtime snapshot. Never attribute a background result to the foreground.
+	if decodeErr == nil && state.SessionID != "" {
+		path = remoteSessionIdentityRoute("", state.SessionID)
+	}
 	a.remoteTabMu.Lock()
 	tab := a.remoteTabs[tabID]
 	a.remoteTabMu.Unlock()
@@ -269,6 +274,11 @@ func (a *App) syncRemoteRuntimeConnection(conn remoteRuntimeConnection) error {
 	states := make(map[string]event.RuntimeStateSnapshot, len(payload.Sessions))
 	for _, session := range payload.Sessions {
 		state, decodeErr := decodeRemoteRuntimeState(session.State)
+		// Identity runtimes from older Serve versions have no legacy path.
+		// Resolve their durable identity before validation and missing-row checks.
+		if state.SessionID != "" {
+			session.SessionPath = remoteSessionIdentityRoute("", state.SessionID)
+		}
 		_, duplicate := states[session.SessionPath]
 		if decodeErr != nil || duplicate {
 			a.markRemoteRuntimeSyncFailed(conn.targets, true)
