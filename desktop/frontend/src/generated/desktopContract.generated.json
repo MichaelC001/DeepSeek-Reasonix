@@ -19921,7 +19921,7 @@
     },
     {
       "cancellation": "before-dispatch",
-      "domain": "desktop/remote_tab.go",
+      "domain": "desktop/remote_submit.go",
       "name": "SubmitRemoteTab",
       "owner": "App.SubmitRemoteTab",
       "params": [
@@ -19942,7 +19942,7 @@
         "resolver": "App.SubmitRemoteTab"
       },
       "sources": [
-        "desktop/remote_tab.go"
+        "desktop/remote_submit.go"
       ]
     },
     {
@@ -20055,7 +20055,7 @@
     },
     {
       "cancellation": "before-dispatch",
-      "domain": "desktop/remote_tab.go",
+      "domain": "desktop/remote_submit.go",
       "name": "SubmitRemoteTabWithSubmission",
       "owner": "App.SubmitRemoteTabWithSubmission",
       "params": [
@@ -20080,7 +20080,7 @@
         "resolver": "App.SubmitRemoteTabWithSubmission"
       },
       "sources": [
-        "desktop/remote_tab.go"
+        "desktop/remote_submit.go"
       ]
     },
     {
