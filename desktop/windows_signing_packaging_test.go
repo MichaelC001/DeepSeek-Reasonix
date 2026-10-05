@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/xml"
 	"errors"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 type signPathArtifactConfiguration struct {
@@ -211,7 +213,24 @@ func TestWindowsReleaseSignsPayloadBeforeRepackaging(t *testing.T) {
 	}
 }
 
+// requireRealBash skips when PATH resolves bash to the System32 WSL relay
+// stub: LookPath finds it, but it cannot run scripts, so the packager dies
+// with a WSL error instead of its own validation output.
+func requireRealBash(t *testing.T) {
+	t.Helper()
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not on PATH")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := exec.CommandContext(ctx, bash, "-c", "true").Run(); err != nil {
+		t.Skipf("bash on PATH cannot run scripts: %v", err)
+	}
+}
+
 func TestWindowsPackagerRejectsMissingOrPartialRequiredPayloadManifest(t *testing.T) {
+	requireRealBash(t)
 	for _, tc := range []struct {
 		name      string
 		manifest  bool

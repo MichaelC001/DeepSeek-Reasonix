@@ -64,6 +64,10 @@ type botBridgeHub struct {
 	lastPersistSeq uint64
 
 	queue chan desktopBridgeNotification
+	// closed 终止 run worker；queue 本身不能 close——observe 仍可能在
+	// controller 事件 goroutine 上并发 enqueue，向已关闭 channel 发送会 panic。
+	closed    chan struct{}
+	closeOnce sync.Once
 }
 
 type desktopPendingPrompt struct {
@@ -135,9 +139,15 @@ func newBotBridgeHub(deps botBridgeDeps) *botBridgeHub {
 		takeovers:       make(map[string]bot.DesktopWatchRoute),
 		takeoverTabs:    make(map[string]string),
 		queue:           make(chan desktopBridgeNotification, botBridgeQueueSize),
+		closed:          make(chan struct{}),
 	}
 	go h.run()
 	return h
+}
+
+// Close 停掉通知 worker goroutine。幂等；App 关停时调用。
+func (h *botBridgeHub) Close() {
+	h.closeOnce.Do(func() { close(h.closed) })
 }
 
 // observe 接收某个桌面会话的一条事件。在 controller 事件 goroutine 上运行，
@@ -209,8 +219,13 @@ func (h *botBridgeHub) enqueue(n desktopBridgeNotification) {
 }
 
 func (h *botBridgeHub) run() {
-	for n := range h.queue {
-		h.deliver(n)
+	for {
+		select {
+		case <-h.closed:
+			return
+		case n := <-h.queue:
+			h.deliver(n)
+		}
 	}
 }
 

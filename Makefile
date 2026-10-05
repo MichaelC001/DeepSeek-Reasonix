@@ -52,14 +52,16 @@ lint-cross:
 test:
 	go test ./...
 
+# The desktop suite needs ~25m locally, past go's default 10m test alarm
+# (the TaggedHistory migrations alone are ~389s), so these targets pin a wider one.
 desktop-test:
-	cd desktop && go test .
+	cd desktop && go test -timeout=25m .
 
 desktop-test-short:
-	cd desktop && go test -short .
+	cd desktop && go test -short -timeout=25m .
 
 desktop-test-times:
-	cd desktop && go test -count=1 -json . | python3 ../scripts/desktop-test-times.py
+	cd desktop && go test -count=1 -timeout=25m -json . | python3 ../scripts/desktop-test-times.py
 
 sdk-test:
 	cd sdk/go && go test ./...

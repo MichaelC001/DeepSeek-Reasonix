@@ -2,6 +2,652 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.39.8",
+      "date": "2026-10-02",
+      "channel": "stable",
+      "targetingVersion": 1,
+      "title": {
+        "en": "Reasonix 1.39.8",
+        "zh": "Reasonix 1.39.8"
+      },
+      "summary": {
+        "en": "Fixes for session delete and archive failing in projects shared with Studio, archiving a legacy recovery chain in one action, sub-agent tool calls showing up in the main conversation, and an intermittent Command Code error.",
+        "zh": "修复与 Studio 共用的项目里删除、归档会话反复失败，旧版恢复链一次归档，子代理工具调用出现在主对话里，以及 Command Code 的一个偶发错误。"
+      },
+      "surfaces": [
+        "desktop",
+        "cli"
+      ],
+      "guides": [],
+      "highlights": [
+        {
+          "kind": "fixed",
+          "targets": [
+            "desktop"
+          ],
+          "title": {
+            "en": "Deleting or archiving a session no longer fails over and over after the catalog starts rescanning",
+            "zh": "目录反复重扫时，删除或归档会话不再一直失败"
+          },
+          "body": {
+            "en": "In some projects (seen when the same project folder was also opened by Studio 2.x) the session catalog rescanned the folder every few seconds even though no session had changed, and every delete or archive then failed with \"This session is already performing the same operation\". Lock files, temporary files, sidecar files and subdirectory timestamps no longer trigger a rescan; only session transcripts, their metadata and event logs do. Rescans of one folder now back off from 1 s up to 60 s, a real delete or rename still skips the backoff, and the archive path waits up to 1.5 s for a busy lock instead of giving up at once. No session file is written, moved or deleted.",
+            "zh": "在部分项目里（同一个项目文件夹也被 Studio 2.x 打开过时出现），目录没有任何会话变化，却每隔几秒被重新扫描一次，随后任何删除或归档都会失败，提示「该会话正在执行相同操作」。现在锁文件、临时文件、附属文件和子目录的时间戳不再触发重扫，只有会话记录、元数据和事件日志的变化才会；同一目录的重扫会从 1 秒起逐步退避到 60 秒，真实的删除和改名不受退避影响；归档遇到忙碌的锁时最多等待 1.5 秒，不再立刻放弃。不会写入、移动或删除任何会话文件。"
+          },
+          "refs": [
+            11693,
+            11722
+          ]
+        },
+        {
+          "kind": "fixed",
+          "targets": [
+            "desktop"
+          ],
+          "title": {
+            "en": "Archiving a legacy recovery row now archives the whole recovery chain in one action",
+            "zh": "归档旧版恢复行时，整条恢复链一次归档"
+          },
+          "body": {
+            "en": "Archiving one row of an old recovery lineage used to retire only one to four snapshots, so each click left a new copy behind and the same set had to be archived dozens of times. The whole chain is now found by walking the parent links, and archived in one action. The lock is released between snapshots, so other tabs keep working while a long chain is archived. If a snapshot cannot be archived the rest still are, the result reports how many remain, and running the action again finishes it. Source files are never deleted or rewritten, and archived copies stay restorable from Archived.",
+            "zh": "归档旧版恢复链里的某一行时，原来只会处理一到四个快照，每点一次都会留下新的副本，同一批要归档几十次。现在会顺着父节点找到整条恢复链，并一次归档。每个快照之间会释放锁，所以归档很长的链时，其他标签仍可正常使用。个别快照归档失败时其余照常归档，结果会报告还剩几个，再执行一次即可补完。源文件不会被删除或改写，已归档的副本仍可从「已归档」恢复。"
+          },
+          "refs": [
+            11581,
+            11717
+          ]
+        }
+      ],
+      "changes": {
+        "new": [],
+        "improved": [],
+        "fixed": [
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Sub-agent tool calls stay inside their sub-agent card",
+              "zh": "子代理的工具调用留在各自的子代理卡片里"
+            },
+            "body": {
+              "en": "Tool calls made by a background sub-agent (task or fleet) appeared as separate rows in the main conversation, without arguments or results, also after reopening a session. The parent id of each call was dropped when a session is read from its transcript records; it is now kept, so the calls nest under their sub-agent card again.",
+              "zh": "后台子代理（task 或 fleet）发出的工具调用会作为独立的行出现在主对话里，没有参数和结果，重新打开会话后也一样。原因是从会话记录读取时丢掉了每个调用的父级标识；现在保留了它，这些调用重新嵌套在各自的子代理卡片里。"
+            },
+            "refs": [
+              11338,
+              11690
+            ]
+          },
+          {
+            "targets": [
+              "desktop",
+              "cli"
+            ],
+            "title": {
+              "en": "Command Code requests retry once after an intermittent anonymous 400",
+              "zh": "Command Code 的请求遇到偶发的匿名 400 时会重试一次"
+            },
+            "body": {
+              "en": "Command Code's Responses route sometimes answers an unchanged request body with an anonymous 400 that succeeds when sent again. For that host and that error shape the request is now resent once with the same body; named schema errors, other hosts and other statuses are not retried.",
+              "zh": "Command Code 的 Responses 接口偶尔会对同一份请求体返回一个没有具体信息的 400，再发一次就成功。现在对这个服务商和这种错误形态，会用同一份请求体重发一次；带具体信息的参数错误、其他服务商和其他状态码都不会重试。"
+            },
+            "refs": [
+              11617,
+              11666
+            ]
+          }
+        ]
+      },
+      "upgrade": [],
+      "risks": [
+        {
+          "targets": [
+            "desktop"
+          ],
+          "title": {
+            "en": "Archiving a very long recovery chain can take a while",
+            "zh": "归档很长的恢复链可能需要一段时间"
+          },
+          "body": {
+            "en": "Each snapshot of the chain is archived separately (about 2 MB each in the reported case), so a chain of dozens can take tens of seconds. Other work continues in the meantime; if the action reports that some snapshots remain, run it again.",
+            "zh": "恢复链里的每个快照都会单独归档（报告的案例里每个约 2 MB），几十个快照可能要花几十秒。期间其他操作可以继续；如果提示还有快照未完成，再执行一次即可。"
+          },
+          "refs": [
+            11717
+          ]
+        }
+      ],
+      "contributors": [
+        "Harbor404"
+      ],
+      "links": {
+        "github": "https://github.com/esengine/DeepSeek-Reasonix/releases/tag/desktop-v1.39.8",
+        "compare": "https://github.com/esengine/DeepSeek-Reasonix/compare/desktop-v1.39.7...desktop-v1.39.8",
+        "download": "https://reasonix.io/?download=desktop&channel=stable#start"
+      },
+      "releaseId": "1.39.8",
+      "baseVersion": "1.39.8",
+      "status": "reviewed",
+      "previousRelease": "1.39.7",
+      "builds": {
+        "cli": "v1.39.8",
+        "desktop": "v1.39.8",
+        "npm": "1.39.8"
+      }
+    },
+    {
+      "version": "1.39.7",
+      "date": "2026-10-02",
+      "channel": "stable",
+      "targetingVersion": 1,
+      "title": {
+        "en": "Reasonix 1.39.7",
+        "zh": "Reasonix 1.39.7"
+      },
+      "summary": {
+        "en": "Desktop fixes for session totals resetting, long-turn history paging, remote session switching, forked sessions and Goal editing, plus a partial fix for sessions missing after migration.",
+        "zh": "桌面端修复：会话用量统计清零、长轮次历史分页、远端会话切换、分叉会话和编辑目标，并部分修复迁移后会话消失的问题。"
+      },
+      "surfaces": [
+        "desktop"
+      ],
+      "guides": [],
+      "highlights": [
+        {
+          "kind": "fixed",
+          "targets": [
+            "desktop"
+          ],
+          "title": {
+            "en": "Session totals no longer reset when you switch away and back",
+            "zh": "切换会话后再切回来，用量统计不再清零"
+          },
+          "body": {
+            "en": "Sessions in the current store kept no usage snapshot, so request count, tokens, cost and read-file records reset to zero after switching to another session and back. They are now saved per session and restored when it opens; a missing or damaged file falls back to empty and never blocks the switch.",
+            "zh": "当前存储格式的会话没有保存用量快照，切换到别的会话再切回来后，请求数、令牌数、费用和已读文件记录都会归零。现在这些数据按会话保存，打开会话时恢复；文件缺失或损坏时回退为空，不会影响切换。"
+          },
+          "refs": [
+            11621
+          ]
+        },
+        {
+          "kind": "fixed",
+          "targets": [
+            "desktop"
+          ],
+          "title": {
+            "en": "Switching remote sessions while one is busy keeps your message and history",
+            "zh": "远端会话忙碌时切换，消息和历史不再丢失"
+          },
+          "body": {
+            "en": "A submission made while the remote session was between states could fail outright, busy submissions did not show in the queue at once, and returning to a visited session waited for the full history. Temporary transitions are now retried with the message and attachments kept, queued messages appear immediately, running sessions stay attached in the background, and a visited session paints its resident history first, then reconciles with the authoritative one.",
+            "zh": "远端会话处于过渡状态时提交的消息可能直接失败，忙碌时提交的消息不会立刻出现在队列里，回到访问过的会话还要等完整历史加载。现在临时过渡会在保留消息和附件的前提下重试，排队的消息立即显示，运行中的会话在后台保持连接，访问过的会话先显示已有历史，再与权威历史对账。"
+          },
+          "refs": [
+            11345,
+            11512
+          ]
+        }
+      ],
+      "changes": {
+        "new": [],
+        "improved": [],
+        "fixed": [
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "A long turn cut by a history page boundary folds, and the newest page loads at the bottom",
+              "zh": "被历史分页截断的长轮次可以折叠，滚到底部会自动加载最新一页"
+            },
+            "body": {
+              "en": "When a history page cut a turn, its tool cards stayed expanded with no fold button until the earlier page loaded. That group now folds like any settled turn. After loading older pages, reaching the bottom of the window now requests the next page once automatically, so a folded long turn no longer looks like the end of the conversation. The manual buttons stay.",
+              "zh": "历史分页把一轮对话截成两半时，后半部分的工具卡片会一直展开且没有折叠按钮，直到前一页加载完。现在它和其他已完成的轮次一样可以折叠。加载更早的页面后，滚到窗口底部会自动请求下一页一次，折叠起来的长轮次不再看起来像对话结尾。手动按钮仍然保留。"
+            },
+            "refs": [
+              11338
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "A second fork of one session no longer makes the workspace history unloadable",
+              "zh": "同一个会话第二次分叉后，工作区历史不再无法加载"
+            },
+            "body": {
+              "en": "A fork's source is its parent session directory, and a source can be registered only once. The second fork of the same parent hit a conflict and the workspace history failed to load. The registration is now skipped when that source is already mapped.",
+              "zh": "分叉的来源是它的父会话目录，而一个来源只能登记一次。同一个父会话的第二次分叉会撞上冲突，导致工作区历史无法加载。现在来源已登记时会跳过重复登记。"
+            },
+            "refs": [
+              11587,
+              11597
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Editing a Goal opens an in-app form instead of failing",
+              "zh": "编辑目标改为应用内表单，不再点击后无反应"
+            },
+            "body": {
+              "en": "The composer's Edit goal action called a browser prompt that the desktop shell does not support, so clicking it did nothing. It now opens an inline form with the objective and the maximum rounds, with validation.",
+              "zh": "输入框里的「编辑目标」调用了桌面外壳不支持的浏览器输入框，点击后没有任何反应。现在改为内嵌表单，可以修改目标和最大轮数，并带校验。"
+            },
+            "refs": [
+              11573,
+              11576
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Sessions from older tabs in an unregistered project no longer stop at a workspace conflict (partial fix)",
+              "zh": "未登记项目里旧标签页的会话不再卡在工作区冲突（部分修复）"
+            },
+            "body": {
+              "en": "Migrating a saved tab that points into a project directory no registered project owns used the tab's own scope, which could report a workspace conflict. The scope now comes from the session's recorded project root when it matches that directory; any other mismatch still reports the conflict. This is only a partial fix for #11641: entries already marked as conflicts are not cleared automatically, and the reporter's exact case is still under investigation.",
+              "zh": "迁移一个指向未登记项目目录的旧标签页时，会沿用标签页自己的范围，可能报「工作区冲突」。现在当会话记录的项目根目录与该目录一致时，范围取自会话记录；其他不一致仍会报告冲突。这只是 #11641 的部分修复：已被标记为冲突的条目不会自动清除，报告者的具体情况仍在调查。"
+            },
+            "refs": [
+              11641,
+              11647
+            ]
+          }
+        ]
+      },
+      "upgrade": [],
+      "risks": [
+        {
+          "targets": [
+            "desktop"
+          ],
+          "title": {
+            "en": "Some migrated sessions may still be missing (#11641)",
+            "zh": "部分迁移后的会话可能仍然缺失（#11641）"
+          },
+          "body": {
+            "en": "Recovery entries already marked as workspace conflicts are not cleared by this release. If sessions are still missing after updating, please add details to #11641.",
+            "zh": "本版本不会清除已经被标记为工作区冲突的恢复条目。更新后如果会话仍然缺失，请到 #11641 补充信息。"
+          },
+          "refs": [
+            11641
+          ]
+        }
+      ],
+      "contributors": [
+        "XTLine"
+      ],
+      "links": {
+        "github": "https://github.com/esengine/DeepSeek-Reasonix/releases/tag/desktop-v1.39.7",
+        "compare": "https://github.com/esengine/DeepSeek-Reasonix/compare/desktop-v1.39.6...desktop-v1.39.7",
+        "download": "https://reasonix.io/?download=desktop&channel=stable#start"
+      },
+      "releaseId": "1.39.7",
+      "baseVersion": "1.39.7",
+      "status": "reviewed",
+      "previousRelease": "1.39.6",
+      "builds": {
+        "cli": "v1.39.7",
+        "desktop": "v1.39.7",
+        "npm": "1.39.7"
+      }
+    },
+    {
+      "version": "1.39.6",
+      "date": "2026-10-01",
+      "channel": "stable",
+      "targetingVersion": 1,
+      "title": {
+        "en": "Reasonix 1.39.6",
+        "zh": "Reasonix 1.39.6"
+      },
+      "summary": {
+        "en": "Fixes for upgrade warnings that would not go away, a dropped connection after a pause, Windows shell commands, and many desktop session and sidebar problems.",
+        "zh": "修复升级后清不掉的配置告警、停顿后连接已断导致的请求失败、Windows 上的 shell 命令问题，以及多处桌面端会话与侧边栏问题。"
+      },
+      "surfaces": [
+        "desktop",
+        "cli"
+      ],
+      "guides": [],
+      "highlights": [
+        {
+          "kind": "fixed",
+          "targets": [
+            "desktop",
+            "cli"
+          ],
+          "title": {
+            "en": "Upgrading no longer leaves permanent configuration warnings",
+            "zh": "升级后不再残留清不掉的配置告警"
+          },
+          "body": {
+            "en": "After upgrading from 1.38 to 1.39.5, project permission rules written by an older version, and the same Windows folder spelled two ways, kept showing configuration-problem banners even though conversations worked. Rules your existing grants already cover are now recognised, and project declarations that are not approved yet are kept for inspection instead of being reported as configuration failures. Project settings still cannot grant access or restore a revoked grant.",
+            "zh": "从 1.38 升级到 1.39.5 后，旧版本写入的项目权限规则，以及同一个 Windows 文件夹的不同写法，会一直弹出配置有问题的提示，尽管对话本身正常。现在已有授权覆盖的规则会被识别，尚未批准的项目声明会保留供查看，不再被当作配置失败。项目设置仍然不能授予权限，也不能恢复已撤销的授权。"
+          },
+          "refs": [
+            11431
+          ]
+        },
+        {
+          "kind": "fixed",
+          "targets": [
+            "desktop",
+            "cli"
+          ],
+          "title": {
+            "en": "A dead idle connection no longer fails the next turn",
+            "zh": "连接在空闲时已断开，不再让下一轮对话失败"
+          },
+          "body": {
+            "en": "After a pause, the next turn could fail with `unexpected EOF` because the request went out on a pooled connection that had already been dropped. Since 1.39.0 a request was sent exactly once, so this surfaced as an error. The request is now resent once on a fresh connection, only when it used a reused idle connection and no response byte arrived. Other failures, timeouts and cancellations are not resent.",
+            "zh": "停顿一段时间后，下一轮对话可能因 `unexpected EOF` 失败，原因是请求走了已被对端断开的复用空闲连接；自 1.39.0 起请求只发送一次，所以这个失败直接暴露给了用户。现在只有在请求使用了复用的空闲连接、且没有收到任何响应字节时，才会在新连接上重发一次；其他失败、超时和取消不会重发。"
+          },
+          "refs": [
+            11271
+          ]
+        }
+      ],
+      "changes": {
+        "new": [],
+        "improved": [
+          {
+            "targets": [
+              "desktop",
+              "cli"
+            ],
+            "title": {
+              "en": "A new message wins over an interrupted turn's recovery notice",
+              "zh": "新消息优先于被中断轮次的恢复提示"
+            },
+            "body": {
+              "en": "After a turn was force-stopped, the recovery notice did not say which instruction wins, so an unrelated new message could be read as a cue to finish the old task. The notice now states that your new message takes precedence and the old task should not be resumed if the two are unrelated.",
+              "zh": "强制停止一轮对话后，恢复提示没有说明以哪条指令为准，无关的新消息可能被当成继续旧任务的信号。现在提示明确写出：以你的新消息为准，两者无关时不要恢复旧任务。"
+            },
+            "refs": [
+              11386
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "A session whose history cannot load shows the reason",
+              "zh": "会话历史加载失败时显示具体原因"
+            },
+            "body": {
+              "en": "\"Unable to load this session\" replaced the real cause with a generic sentence. The Details panel now includes the reader's own failure, so the cause can be reported and diagnosed.",
+              "zh": "「无法加载此会话」原先用一句通用提示盖住了真实原因。现在「详情」里会附上读取失败的具体原因，便于反馈和排查。"
+            },
+            "refs": [
+              11282
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "A failed historical import says why and where to look",
+              "zh": "历史对话导入失败时说明原因和查看位置"
+            },
+            "body": {
+              "en": "A failed \"Import and open\" always showed one sentence. The banner and the historical list now name the class of failure (for example workspace conflict, history too large or damaged, unsupported version, source busy), keep the detail behind the details toggle, and offer a \"Review recovery details\" action that opens Settings > Storage. A failure to open after a successful import no longer reads as a failed import.",
+              "zh": "「导入并打开」失败时原先总是同一句话。现在提示条和历史列表会写出失败类别（例如工作区冲突、历史过大或损坏、版本不受支持、来源被占用），详情收在展开项里，并提供「查看恢复详情」入口，直接打开设置中的存储页。导入成功后打开失败，也不再被说成导入失败。"
+            },
+            "refs": [
+              11294
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Manual sidebar order can be reset",
+              "zh": "可以重置侧边栏的手动排序"
+            },
+            "body": {
+              "en": "After a project was reordered by hand, its sidebar stayed in manual order even when you chose created or updated time. The project menu now has \"Reset manual order\", which turns manual order off and keeps your saved groups and positions.",
+              "zh": "项目手动调整排序后，即使选择按创建或更新时间排序，侧边栏仍保持手动顺序。项目菜单新增「重置手动排序」，关闭手动排序并保留已保存的分组和位置。"
+            },
+            "refs": [
+              11303
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Closing the desktop releases the bot bridge and usage recorders",
+              "zh": "关闭桌面端时释放机器人桥接和用量记录线程"
+            },
+            "body": {
+              "en": "Each desktop start left a bot-bridge goroutine and per-folder usage-recording goroutines running for the lifetime of the process, which piled up over long sessions. They now shut down with the app.",
+              "zh": "桌面端每次启动都会留下机器人桥接线程和按目录的用量记录线程，运行期间一直不释放，长时间使用会越积越多。现在它们随应用一起关闭。"
+            },
+            "refs": [
+              11415
+            ]
+          }
+        ],
+        "fixed": [
+          {
+            "targets": [
+              "desktop",
+              "cli"
+            ],
+            "title": {
+              "en": "Windows shell commands no longer print encoding errors first",
+              "zh": "Windows 上的 shell 命令不再先输出编码错误"
+            },
+            "body": {
+              "en": "The PowerShell prologue could throw before your command ran (no console attached, or ConstrainedLanguage mode), printing error lines ahead of every result. Each setting is now applied defensively. On Windows PowerShell 5.1, `>` and `Out-File` write UTF-8 instead of UTF-16, and text piped to native programs no longer starts with a byte-order mark. The Microsoft Store PowerShell 7 is detected when its alias actually starts.",
+              "zh": "PowerShell 的前置脚本在没有控制台或处于 ConstrainedLanguage 模式时会在你的命令之前报错，每次结果前都带着错误行。现在每项设置都有保护。在 Windows PowerShell 5.1 上，`>` 和 `Out-File` 改为写入 UTF-8 而不是 UTF-16，通过管道传给原生程序的文本也不再以字节序标记开头；能真正启动的 Microsoft Store 版 PowerShell 7 也会被识别。"
+            },
+            "refs": [
+              11253
+            ]
+          },
+          {
+            "targets": [
+              "desktop",
+              "cli"
+            ],
+            "title": {
+              "en": "A too-long Windows command line is named instead of \"filename too long\"",
+              "zh": "Windows 命令行过长时给出明确原因，不再报「文件名太长」"
+            },
+            "body": {
+              "en": "A shell command that embeds a large block of text exceeds the 32,767-character Windows command-line limit and used to fail with \"The filename or extension is too long\". The call is now refused before launch with the size, the limit, a note that nothing ran, and a pointer to `write_file`/`edit_file`.",
+              "zh": "shell 命令内嵌大段文字时会超过 Windows 32,767 字符的命令行上限，过去只报「文件名或扩展名太长」。现在会在启动前拒绝，并说明实际大小和上限、告知没有执行任何内容，提示改用 `write_file` 或 `edit_file`。"
+            },
+            "refs": [
+              11232
+            ]
+          },
+          {
+            "targets": [
+              "desktop",
+              "cli"
+            ],
+            "title": {
+              "en": "Resuming a goal no longer fails on unused parameters",
+              "zh": "恢复目标时不再因多余参数失败"
+            },
+            "body": {
+              "en": "Resuming a Goal could be rejected when the model echoed its objective, a null round limit and an empty blocker. Lifecycle actions now accept fields that belong to other actions without applying them, and the result lists any unused value so it cannot be mistaken for an applied edit.",
+              "zh": "模型在恢复目标时回传了目标描述、空的轮数上限和空的阻塞原因，会被工具拒绝。现在目标的生命周期操作会接受属于其他操作的字段但不应用它们，结果里会列出未生效的值，避免被误当成已生效的修改。"
+            },
+            "refs": [
+              11238
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Permission presets stay with their own remote session",
+              "zh": "权限预设跟随各自的远程会话"
+            },
+            "body": {
+              "en": "On an SSH remote workspace, changing the permission preset in one session could affect another, and the choice was lost when switching sessions or restarting the remote service. Each session now keeps its own preset, and a fork starts no broader than `workspace-write`.",
+              "zh": "在 SSH 远程工作区里，修改一个会话的权限预设可能影响另一个会话，切换会话或重启远程服务后选择还会丢失。现在每个会话各自保存预设，分叉出的会话权限不会比 `workspace-write` 更宽。"
+            },
+            "refs": [
+              11086
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Bot conversations open from the Bots sidebar",
+              "zh": "机器人对话可以从机器人侧边栏打开"
+            },
+            "body": {
+              "en": "A bot conversation could fail to open while the embedded bot still held its session. The desktop and the embedded bot now share one session service, and the sidebar opens the stored transcript read-only.",
+              "zh": "内嵌机器人仍占用会话时，从桌面端机器人侧边栏打开该对话可能失败。现在桌面端和内嵌机器人共用同一个会话服务，侧边栏以只读方式打开已保存的记录。"
+            },
+            "refs": [
+              11273
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "New conversations stay reachable in a hand-ordered sidebar",
+              "zh": "手动排序的侧边栏里新对话不再找不到"
+            },
+            "body": {
+              "en": "Dragging one conversation turned on manual order and flipped the list so the oldest sat on top, while new conversations were appended to the tail, out of reach of the first page. The first drag now keeps the order you were looking at, and a new conversation goes to the top.",
+              "zh": "拖动一个对话会开启手动排序，并把列表整个颠倒成最旧的在最上面，新对话还被追加到末尾，翻不到第一页。现在第一次拖动会保持你当时看到的顺序，新对话放在最前面。"
+            },
+            "refs": [
+              11270
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Trashing one version of a legacy conversation archives them all once",
+              "zh": "移入废纸篓时旧版对话的所有版本只归档一次"
+            },
+            "body": {
+              "en": "For legacy transcripts with unnamed forks or versions behind a concurrent save, one click archived one version at a time, and re-archiving earlier versions could write extra session copies. All versions of the conversation are now archived together, and versions already archived are not copied again. Nothing is deleted.",
+              "zh": "对于带有未命名分叉或并发保存后产生版本的旧版对话，每点一次只归档一个版本，重复归档已处理的版本还可能多写出会话副本。现在会一次归档该对话的所有版本，已归档的版本不再重复复制，也不会删除任何内容。"
+            },
+            "refs": [
+              11309
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Archiving a legacy version keeps the open sibling attached",
+              "zh": "归档旧版本时不再动正在使用的同级版本"
+            },
+            "body": {
+              "en": "Archiving one version of a legacy conversation could create a second copy of a sibling version that is already open as an active session, and move that session's source link to the copy. Versions that already have a source mapping are now left alone.",
+              "zh": "归档旧版对话的某个版本时，可能给已作为活跃会话打开的同级版本再造一份副本，并把该会话的来源关联挪到副本上。现在已有来源关联的版本不会再被动到。"
+            },
+            "refs": [
+              11319
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "\"Load full\" works on a reasoning block that is still streaming",
+              "zh": "仍在输出的思考块可以点「加载全文」"
+            },
+            "body": {
+              "en": "Clicking the load-full button inside a streaming thinking block snapped back to the 8000-character preview at the next chunk. The block now follows the live text while streaming, and the canonical full text loads once it settles.",
+              "zh": "在仍在输出的思考块里点「加载全文」，下一段内容到达时会立刻退回 8000 字的预览。现在输出期间思考块会跟随实时文本，结束后再一次性加载完整内容。"
+            },
+            "refs": [
+              11414
+            ]
+          },
+          {
+            "targets": [
+              "desktop"
+            ],
+            "title": {
+              "en": "Every ended turn can be folded by hand",
+              "zh": "每个已结束的轮次都能手动折叠"
+            },
+            "body": {
+              "en": "Turns that ended by being stopped, failing, or leaving an unfinished tool call were left expanded with no control to fold them. Any ended turn that has a process now shows the fold control, and your choice is remembered per turn. Such turns still start expanded so the interruption stays visible.",
+              "zh": "因停止、出错或留有未完成工具调用而结束的轮次会保持展开，且没有折叠入口。现在只要是带过程的已结束轮次都会显示折叠控件，并按轮次记住你的选择；这类轮次默认仍保持展开，使中断情况一目了然。"
+            },
+            "refs": [
+              11405
+            ]
+          }
+        ]
+      },
+      "upgrade": [],
+      "risks": [
+        {
+          "targets": [
+            "desktop",
+            "cli"
+          ],
+          "title": {
+            "en": "A resent request can, in a rare race, be billed twice",
+            "zh": "重发的请求在极少数竞态下可能被重复计费"
+          },
+          "body": {
+            "en": "The resend after a dead idle connection is capped at one. If the provider had already received the first request just before the connection dropped, that turn is billed twice; this is not expected to be common.",
+            "zh": "空闲连接已断开后的重发最多一次。如果连接断开前服务商恰好已收到第一次请求，这一轮会被计费两次，预计不常见。"
+          },
+          "refs": [
+            11271
+          ]
+        }
+      ],
+      "contributors": [
+        "esengine",
+        "SivanCola",
+        "KHG420",
+        "jf200s"
+      ],
+      "links": {
+        "github": "https://github.com/esengine/DeepSeek-Reasonix/releases/tag/desktop-v1.39.6",
+        "compare": "https://github.com/esengine/DeepSeek-Reasonix/compare/desktop-v1.39.5...desktop-v1.39.6",
+        "download": "https://reasonix.io/?download=desktop&channel=stable#start"
+      },
+      "releaseId": "1.39.6",
+      "baseVersion": "1.39.6",
+      "status": "reviewed",
+      "previousRelease": "1.39.5",
+      "builds": {
+        "cli": "v1.39.6",
+        "desktop": "v1.39.6",
+        "npm": "1.39.6"
+      }
+    },
+    {
       "version": "1.39.5",
       "date": "2026-09-29",
       "channel": "stable",

@@ -100,8 +100,7 @@ for the latest desktop build.
 | Windows | Installer `.exe` or portable `.zip` | x64 / ARM64 |
 | Linux | `.deb` or `.tar.gz` | x64 |
 
-Windows installers are code-signed through [SignPath.io](https://signpath.io/)
-with a free certificate provided by the [SignPath Foundation](https://signpath.org/).
+Windows installers are code-signed with a Certum code-signing certificate.
 
 ### Path C: VS Code extension
 

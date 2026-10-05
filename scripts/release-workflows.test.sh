@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 node --test "$repo_root/scripts/verify-manual-desktop-producer.test.mjs"
 node --test "$repo_root/scripts/release-publication-ledger.test.mjs"
+node --test "$repo_root/scripts/release-cli-freeze.test.mjs"
 bash "$repo_root/scripts/manual-desktop-exception.test.sh"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/reasonix-release-workflow-test.XXXXXX")"
 cleanup() {
@@ -57,6 +58,14 @@ assert '!inputs.desktop_manual_only' in attach
 manual_publish = publisher.split('if [ "${DESKTOP_MANUAL_ONLY:-false}" = "true" ]; then', 1)[1].split('elif', 1)[0]
 assert 'manual-desktop-exception.sh" validate "$tag"' in manual_publish
 assert 'args+=(--latest=false)' in manual_publish
+stable_publish = publisher.split('elif [ "$prerelease" = "true" ]; then', 1)[1].split('fi', 1)[0]
+assert 'args+=(--latest=false)' in stable_publish and 'args+=(--latest)' not in publisher
+release_yml = (root / '.github/workflows/release.yml').read_text()
+assert 'releases/latest/download' not in release_yml
+assert 'Smoke public compatibility manifest' not in release_yml
+verify = release_yml.split('name: Verify published CLI release assets', 1)[1].split('\n      - name:', 1)[0].split('\n      # ', 1)[0]
+assert 'release-control/scripts/decide-cli-release-publication.sh' in verify and 'test "$decision" = "reuse"' in verify
+assert 'sha256sum latest.json' in verify and 'test "$want" = "$got"' in verify
 assert 'name: Sign artifacts (minisign)' in desktop
 PY
 [ "$(grep -Ec '^    environment: release$' "$repo_root/.github/workflows/release-stable.yml")" = "1" ]

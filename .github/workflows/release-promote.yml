@@ -342,6 +342,7 @@ jobs:
           RELEASE_OPERATION: ${{ inputs.operation }}
           RELEASE_EXPECTED_SHA: ${{ needs.preflight.outputs.source_sha }}
           RELEASE_LEDGER_OUTPUT: /tmp/publication-ledger.json
+          CLI_PUBLISH_FROZEN: ${{ vars.CLI_PUBLISH_FROZEN == 'true' }}
         run: bash scripts/reconcile-release-publication.sh
       - name: Upload publication ledger
         if: always()

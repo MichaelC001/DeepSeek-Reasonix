@@ -332,6 +332,7 @@ func (a *App) shutdownBody(c *desktopShutdownCoordinator, items []desktopShutdow
 		c.runStep("heartbeat", a.heartbeat.Stop)
 	}
 	c.runStep("bot-runtime", a.stopBotRuntime)
+	c.runStep("bot-bridge", a.stopBotBridge)
 	c.runStep("remote-runtime", a.stopRemoteRuntime)
 	c.runStep("tray", a.stopTray)
 	if a.terminals != nil {

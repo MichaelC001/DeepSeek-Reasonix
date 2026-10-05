@@ -11,6 +11,8 @@ import (
 
 const interruptedRecoveryTag = "interrupted-turn-recovery"
 
+const recoveryPrecedenceClause = "The user's new message takes precedence. If it is unrelated to the interrupted task, do not resume that task."
+
 const (
 	maxRecoveryTools = 24
 	maxRecoveryFiles = 8
@@ -120,7 +122,7 @@ func interruptedRecoveryBlock(r *provider.InterruptedTurnRecovery) string {
 			b.WriteString(" (assistant text)\n")
 		}
 	}
-	b.WriteString("Use these facts when deciding the next action. Read-only or idempotent calls may be retried when useful. For outcome-unknown calls, inspect workspace or external state before retrying operations with side effects, and ask the user when the safe action cannot be inferred. Calls marked not_started may be planned again with complete arguments.\n")
+	b.WriteString("Use these facts when deciding the next action. Read-only or idempotent calls may be retried when useful. For outcome-unknown calls, inspect workspace or external state before retrying operations with side effects, and ask the user when the safe action cannot be inferred. Calls marked not_started may be planned again with complete arguments. " + recoveryPrecedenceClause + "\n")
 	fmt.Fprintf(&b, "</%s>", interruptedRecoveryTag)
 	return b.String()
 }

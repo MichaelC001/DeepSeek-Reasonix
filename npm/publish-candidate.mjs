@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import path from "node:path";
-import { publishPackages } from "./publish.mjs";
+import { publishPackages, stableDistTagFromEnv } from "./publish.mjs";
 
 const [directory, version, candidateSha] = process.argv.slice(2);
 if (!directory || !version || !candidateSha) {
@@ -17,4 +17,4 @@ const packages = readdirSync(directory)
     return { name: manifest.name, manifest, tarball, dir: process.cwd() };
   });
 
-publishPackages({ packages, version, candidateSha });
+publishPackages({ packages, version, candidateSha, stableDistTag: stableDistTagFromEnv() });

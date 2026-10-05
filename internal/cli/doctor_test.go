@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"reasonix/internal/config"
+	"reasonix/internal/i18n"
 )
 
 func TestDoctorCommandPrintsJSON(t *testing.T) {
@@ -36,6 +37,25 @@ func TestRunDispatchesDoctor(t *testing.T) {
 	})
 	if !strings.Contains(out, "reasonix dispatch-version doctor") {
 		t.Fatalf("doctor output missing header:\n%s", out)
+	}
+}
+
+func TestDoctorUsesConfiguredLanguage(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("REASONIX_HOME", home)
+	t.Chdir(t.TempDir())
+	previous := i18n.CurrentLanguage()
+	t.Cleanup(func() { i18n.DetectLanguage(previous) })
+	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte("language='zh'\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	captureStdout(t, func() {
+		if rc := Run([]string{"doctor", "--json"}, "test"); rc != 0 {
+			t.Fatalf("doctor rc=%d", rc)
+		}
+	})
+	if i18n.CurrentLanguage() != "zh" {
+		t.Fatalf("configured language lost: %s", i18n.CurrentLanguage())
 	}
 }
 

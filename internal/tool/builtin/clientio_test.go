@@ -212,7 +212,9 @@ func TestBashRoutesToClientTerminal(t *testing.T) {
 func TestBashTerminalFallsBackWhenUnhandled(t *testing.T) {
 	term := &fakeTerminal{ok: false}
 	b := bash{workDir: t.TempDir(), terminal: term}
-	out, err := b.Execute(fullAccessBashTestContext(t.Context()), json.RawMessage(`{"command":"printf local"}`))
+	// echo runs under both POSIX shells and the PowerShell a Windows host
+	// without bash resolves to; the payload only has to reach local execution.
+	out, err := b.Execute(fullAccessBashTestContext(t.Context()), json.RawMessage(`{"command":"echo local"}`))
 	if err != nil || !strings.Contains(out, "local") {
 		t.Fatalf("unhandled terminal must fall back to local execution; got %q, %v", out, err)
 	}
@@ -236,7 +238,8 @@ func TestBashTerminalSkippedWhenEnvFilteringEnabled(t *testing.T) {
 	b := bash{workDir: t.TempDir(), terminal: term}
 	// The client terminal spawns with its own unfiltered environment, so an
 	// enabled [secrets].filter_subprocess_env must force local execution.
-	out, err := b.Execute(fullAccessBashTestContext(t.Context()), json.RawMessage(`{"command":"printf local"}`))
+	// echo runs under both POSIX shells and the Windows PowerShell fallback.
+	out, err := b.Execute(fullAccessBashTestContext(t.Context()), json.RawMessage(`{"command":"echo local"}`))
 	if err != nil || !strings.Contains(out, "local") {
 		t.Fatalf("env filtering must fall back to local execution; got %q, %v", out, err)
 	}

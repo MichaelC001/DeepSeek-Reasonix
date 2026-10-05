@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { publishPackages } from "./publish.mjs";
+import { publishPackages, stableDistTagFromEnv } from "./publish.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -135,4 +135,5 @@ publishPackages({
   packages: [...subPackages, { name: "reasonix", dir: mainDir }],
   version,
   candidateSha,
+  stableDistTag: stableDistTagFromEnv(),
 });

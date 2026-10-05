@@ -125,6 +125,28 @@ queue, runner, build, signing, acceptance, upload, site deployment, and total
 wall time. Diagnostic timing failures do not invalidate a sealed candidate or a
 verified publication.
 
+## Freezing the CLI channels
+
+Setting the repository variable `CLI_PUBLISH_FROZEN` to `true` hands the CLI
+install channels to another release line while this line keeps shipping. Unset,
+empty, or any value other than `true` changes nothing. The comparison ignores
+case (`TRUE` freezes), is made once in the workflow expression, and every script
+receives the resulting `true` or `false`, so both sides always agree. When it is
+`true`, a Stable release
+still creates the `vX.Y.Z` GitHub release, its immutable
+`cli/releases/<tag>/latest.json` record, the `npm-vX.Y.Z` tag, Desktop and the
+Desktop Stable manifest, but it no longer:
+
+- writes the Homebrew cask (GoReleaser runs with `--skip=homebrew`, and the tap
+  token is withheld);
+- writes the R2 `cli/{stable,preview}/latest.json` pointers;
+- moves npm `latest`, `canary` or `next`, or waits for `latest`.
+
+npm packages are still published, under the `legacy-v1` dist-tag, so `npm i -g
+reasonix@legacy-v1` (or `reasonix@1`) resolves to this line. npm refuses `v1` as
+a tag name because it parses as a semver range. Postflight and **Verify
+release** check `legacy-v1` instead of `latest` and skip the Homebrew cask.
+
 ## Legacy recovery
 
 **Legacy release recovery** remains available only for releases created before

@@ -1299,7 +1299,7 @@ jobs:
     if: ${{ !cancelled() && needs.desktop-prepare.result == 'success' && ((github.event_name != 'pull_request' && needs.changes.outputs.notes_only != 'true') || needs.changes.outputs.native != 'false') }}
     runs-on: windows-latest
     # Independent runners prevent valid groups from consuming each other's
-    # step deadline. Go retains its default per-package ten-minute timeout.
+    # step deadline. Each group runs with go -timeout=25m (driver testArgs).
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -1652,6 +1652,7 @@ jobs:
             scripts/verify-release-artifact-archive.test.mjs \
             scripts/build-release-cli-candidate.test.mjs scripts/publish-homebrew-cask.test.mjs \
             scripts/desktop-release-artifacts.test.mjs scripts/release-publication-ledger.test.mjs \
+            scripts/release-cli-freeze.test.mjs \
             scripts/ci-paths.test.mjs scripts/ci-workflow.test.mjs scripts/macos-go-tests.test.mjs \
             scripts/desktop-windows-go-tests.test.mjs \
             npm/publish.test.mjs

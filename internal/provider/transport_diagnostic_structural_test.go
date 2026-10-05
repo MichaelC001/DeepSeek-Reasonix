@@ -75,6 +75,15 @@ func TestHTTP2StdlibStreamAndGoAwayTypes(t *testing.T) {
 								// use a non-retryable code to inspect the private stream type.
 								_ = framer.WriteRSTStream(headers.StreamID, code)
 							}
+							// Drain late client frames before closing: a Windows close
+							// with unread inbound data sends RST, clobbering the frame
+							// just written (upstream #11152 flake). Exits early on EOF.
+							_ = conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+							for {
+								if _, err := framer.ReadFrame(); err != nil {
+									break
+								}
+							}
 							return
 						}
 					}

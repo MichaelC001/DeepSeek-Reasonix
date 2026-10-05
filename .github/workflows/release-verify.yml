@@ -36,4 +36,5 @@ jobs:
           CLI_TAG: v${{ inputs.version }}
           DESKTOP_TAG: desktop-v${{ inputs.version }}
           VERIFY_PUBLIC_POINTERS: "true"
+          CLI_PUBLISH_FROZEN: ${{ vars.CLI_PUBLISH_FROZEN == 'true' }}
         run: bash scripts/verify-stable-release-artifacts.sh

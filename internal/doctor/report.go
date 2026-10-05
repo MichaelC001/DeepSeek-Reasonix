@@ -20,6 +20,7 @@ import (
 	fileencoding "reasonix/internal/fileutil/encoding"
 	"reasonix/internal/netclient"
 	"reasonix/internal/sandbox"
+	"reasonix/internal/secrets"
 	"reasonix/internal/skill"
 	"reasonix/internal/store"
 )
@@ -147,15 +148,7 @@ func Collect(opts Options) Report {
 	}
 	cwd, _ := os.Getwd()
 	sourcePath := config.SourcePath()
-	// Settings UIs and `reasonix config` edit the user-level config, but a
-	// project reasonix.toml outranks it. Users who toggle the sandbox off in
-	// Settings while the project file pins [sandbox] read the no-op as "bash is
-	// broken" (#5961, #6046) — surface the layering explicitly.
-	if sourcePath != "" && filepath.Base(sourcePath) == "reasonix.toml" {
-		if raw, err := fileencoding.ReadFileUTF8(sourcePath); err == nil && tomlHasSandboxTable(raw) {
-			warnings = append(warnings, "project "+redactHome(sourcePath)+" sets [sandbox]; it overrides user-level Settings -> Sandbox for this workspace — edit the project file to change sandbox behavior here")
-		}
-	}
+	warnings = append(warnings, configWarnings(cfg, sourcePath)...)
 	userPath := config.UserConfigPath()
 	if legacyPath := config.LegacyUserConfigPath(); userPath != "" && legacyPath != "" {
 		if _, userErr := os.Stat(userPath); userErr == nil {
@@ -252,6 +245,27 @@ func Collect(opts Options) Report {
 		})
 	}
 	return report
+}
+
+func configWarnings(cfg *config.Config, sourcePath string) []string {
+	warnings := cfg.LoadWarnings()
+	// Settings edits user configuration, while project files can still tighten
+	// the sandbox (#5961, #6046). A project cannot override user constraints.
+	if sourcePath != "" && filepath.Base(sourcePath) == "reasonix.toml" {
+		if raw, err := fileencoding.ReadFileUTF8(sourcePath); err == nil && tomlHasSandboxTable(raw) {
+			warnings = append(warnings, "project "+redactHome(sourcePath)+" sets [sandbox]; project values may narrow user-level Settings -> Sandbox for this workspace — edit the project file to change those constraints")
+		}
+	}
+	for _, entry := range cfg.IgnoredProjectSettings() {
+		switch entry.Key {
+		case "permissions.allow", "sandbox.allow_write", "sandbox.workspace_root":
+			warnings = append(warnings, fmt.Sprintf("project config sets %s = %q; not granted by this declaration; approval is required when needed", entry.Key, entry.Value))
+		}
+	}
+	for i := range warnings {
+		warnings[i] = secrets.RedactCredentials(redactHome(warnings[i]))
+	}
+	return warnings
 }
 
 func appendRecoveryWarnings(warnings []string, recovery RecoveryLifecycleReport) []string {

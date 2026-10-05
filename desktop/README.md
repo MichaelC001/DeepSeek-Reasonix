@@ -156,10 +156,9 @@ Desktop releases ride their own tag namespace, `desktop-v<semver>` (plain `v*`
 tags are the CLI release). Pushing one triggers `.github/workflows/release-desktop.yml`,
 which builds on a native runner per platform (Electron's Chromium can't
 cross-compile), packages each artifact, signs it with minisign, generates a
-`latest.json` manifest, publishes a GitHub release, marks the desktop release as
-GitHub's repository-wide `Latest`, mirrors everything to R2, and attaches the
-current desktop manifest to the matching CLI release for old clients that still
-ask GitHub's repository-wide `latest` release for it.
+`latest.json` manifest, publishes a GitHub release that does not claim the repository-wide `Latest`
+badge, mirrors everything to R2, and attaches the current desktop manifest to
+the matching CLI release for old clients.
 The Linux artifact bundles Electron's Chromium and ships a root-owned
 `chrome-sandbox` helper in the `.deb`; no system webview is required.
 
@@ -193,8 +192,8 @@ not depend on homepage badge semantics. Self-update behavior by platform:
 
 ### Code signing — first launch
 
-- **Windows** — stable builds carry an Authenticode signature (SignPath, approved
-  per release; `release-desktop.yml` verifies every payload binary through
+- **Windows** — stable builds carry an Authenticode signature (Certum certificate;
+  `release-desktop.yml` verifies every payload binary through
   `scripts/verify-windows-authenticode.ps1` and fails the release otherwise). A
   brand-new version can still show SmartScreen until the signature accumulates
   reputation: *More info → Run anyway*.

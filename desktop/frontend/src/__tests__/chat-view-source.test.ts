@@ -48,12 +48,12 @@ const warning: Item = { kind: "notice", id: "warning", level: "warn", text: "int
 source.update({ ...input, items: [...settled, warning], running: false });
 await Promise.resolve();
 const failed = source.getNodeSnapshot("u2:process");
-assert.ok(failed?.kind === "process" && !failed.foldable);
+assert.ok(failed?.kind === "process" && failed.foldable && !failed.collapsed, "an interrupted turn stays open but can be folded");
 assert.ok(source.getOrderSnapshot().includes("warning"));
 source.update({ ...input, items: [settled[1]], running: false });
 await Promise.resolve();
 const incomplete = source.getNodeSnapshot("history-head:process");
-assert.ok(incomplete?.kind === "process" && !incomplete.foldable);
+assert.ok(incomplete?.kind === "process" && incomplete.foldable, "a group without its user message still has a fold seat");
 source.update(input);
 source.dispose();
 const notified = active;
@@ -120,7 +120,8 @@ const restored = new ChatSource("recovered-weather");
 restored.update({ ...input, items: weather, running: false });
 assert.equal((restored.getNodeSnapshot("weather-user:process") as typeof compact).collapsed, false, "manual open survives session revisit");
 restored.update({ ...input, items: [...weather, { kind: "notice", id: "stopped", level: "info", text: "Stopped" }], running: false });
-assert.equal((restored.getNodeSnapshot("weather-user:process") as typeof compact).foldable, false, "terminal interruption is not hidden by a partial answer");
+const interrupted = restored.getNodeSnapshot("weather-user:process") as typeof compact;
+assert.ok(interrupted.foldable && !interrupted.collapsed, "terminal interruption stays open and keeps the manual choice");
 restored.dispose();
 
 const deliverables = new ChatSource("deliverables");
@@ -199,3 +200,34 @@ const maintenanceProcess = maintenanceSource.getNodeSnapshot("compact-user:proce
 assert.ok(maintenanceProcess?.kind === "process" && !maintenanceProcess.members.includes("maintenance:op"), "maintenance card is independent from the previous process fold");
 assert.ok(maintenanceSource.getOrderSnapshot().includes("maintenance:op"), "pending maintenance remains mounted");
 maintenanceSource.dispose();
+
+const endings: Record<string, Item[]> = {
+  clean: [{ kind: "assistant", id: "clean-answer", text: "done", reasoning: "", streaming: false, turnFinal: true }],
+  stopped: [{ kind: "notice", id: "stopped-note", level: "info", text: "Stopped" }],
+  errored: [{ kind: "notice", id: "errored-note", level: "warn", text: "provider error" }],
+  unfinishedTool: [{ kind: "tool", id: "hung", name: "fleet", args: "{}", readOnly: true, status: "stopped" }],
+  streamingLeftover: [{ kind: "assistant", id: "leftover", text: "partial", reasoning: "", streaming: true }],
+};
+for (const [ending, tail] of Object.entries(endings)) {
+  const source = new ChatSource(`ending-${ending}`);
+  const turn: Item[] = [
+    { kind: "user", id: "q", text: "go", checkpointTurn: 1 },
+    { kind: "tool", id: "t1", name: "bash", args: "{}", readOnly: true, status: "done", output: "ok" },
+    ...tail,
+  ];
+  source.update({ ...input, items: turn, running: false });
+  await Promise.resolve();
+  const seat = () => source.getNodeSnapshot("q:process") as Extract<NonNullable<ReturnType<typeof source.getNodeSnapshot>>, { kind: "process" }>;
+  assert.ok(seat().foldable, `${ending}: every ended turn has a fold control`);
+  const startsFolded = seat().collapsed;
+  assert.equal(startsFolded, ending === "clean", `${ending}: only a settled turn starts folded`);
+  source.toggleProcess("q");
+  assert.equal(seat().collapsed, !startsFolded, `${ending}: the control flips the turn`);
+  source.update({ ...input, items: [...turn], running: false });
+  await Promise.resolve();
+  assert.equal(seat().collapsed, !startsFolded, `${ending}: the manual choice survives republication`);
+  source.toggleProcess("q");
+  assert.equal(seat().collapsed, startsFolded, `${ending}: the control flips back`);
+  source.dispose();
+}
+console.log("chat view: every ended turn is foldable by hand");

@@ -587,7 +587,8 @@ test("Windows desktop Go partitions tests without verbose JSON cache overhead", 
     const args = windowsDesktopTestArgs(group);
     assert.equal(args[0], "test");
     assert.equal(args.at(-1), "./...");
-    assert.ok(!args.some(arg => arg.startsWith("-timeout") || arg === "-json" || arg === "-v"));
+    assert.ok(args.includes("-timeout=25m"));
+    assert.ok(!args.some(arg => (arg.startsWith("-timeout") && arg !== "-timeout=25m") || arg === "-json" || arg === "-v"));
     return { run: args.includes("-run") ? args[args.indexOf("-run") + 1] : undefined,
       skip: args.includes("-skip") ? args[args.indexOf("-skip") + 1] : undefined };
   });

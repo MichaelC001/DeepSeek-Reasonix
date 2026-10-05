@@ -42,7 +42,7 @@ func TestPowerShellPersistentLive(t *testing.T) {
 	m := New()
 	m.Retain()
 	defer m.Release()
-	req := Request{Shell: sh, Argv: InteractiveArgv(sh), Dir: t.TempDir(), Env: os.Environ(), Timeout: 10 * time.Second}
+	req := Request{Shell: sh, Argv: InteractiveArgv(sh), Dir: longPath(t.TempDir()), Env: os.Environ(), Timeout: 10 * time.Second}
 	run := func(command string) Result { req.Command = command; return m.Run(context.Background(), req) }
 	first := run("$myValue = '中文 value'; function MyValue { $myValue }; $env:RX_SAMPLE = 'kept'; Write-Output ready")
 	if first.Err != nil || !first.ExitCodeKnown {

@@ -61,7 +61,9 @@ export function verifyInventory(inventory, requireProbe = process.platform === "
 export function testArgs(group, race = false) {
   if (!groups.includes(group)) throw new Error(`Unknown desktop Windows test group: ${group}`);
   const { run, skip } = filters[group];
-  return ["test", ...(race ? ["-race"] : []), ...(run ? ["-run", run] : []), ...(skip ? ["-skip", skip] : []), "./..."];
+  // go's default alarm is 10m; the desktop race sweep already exceeded it and
+  // the unpartitioned suite needs ~25m locally. Give every group the headroom.
+  return ["test", ...(race ? ["-race"] : []), "-timeout=25m", ...(run ? ["-run", run] : []), ...(skip ? ["-skip", skip] : []), "./..."];
 }
 
 function main(group, mode) {

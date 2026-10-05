@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -127,6 +128,28 @@ func testGroupRoute() bot.DesktopWatchRoute {
 	r.ChatType = bot.ChatGroup
 	r.ChatID = "group-god"
 	return r
+}
+
+// newBotBridgeHub 启动一个 run worker；Close 必须让它退出，否则每个 App 实例
+// 都泄漏一个 goroutine（转储曾观测到上千个）。enqueue 在 Close 后仍不得 panic：
+// observe 可能在 controller 事件 goroutine 上与关停并发。
+func TestBridgeCloseStopsRunGoroutine(t *testing.T) {
+	before := runtime.NumGoroutine()
+	env := newBridgeTestEnv(nil)
+	env.hub.SetWatch(testWatchRoute(), true)
+	env.hub.Close()
+	env.hub.Close() // 幂等
+	// 有订阅者时 observe 会真正 enqueue；Close 后不得 panic。
+	env.hub.observe("tab-1", event.Event{Kind: event.TurnDone})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= before {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("hub run goroutine still alive after Close: %d goroutines > baseline %d", runtime.NumGoroutine(), before)
 }
 
 func TestBridgeTakeoverRejectsGroupChat(t *testing.T) {

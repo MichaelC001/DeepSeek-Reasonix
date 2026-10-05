@@ -278,6 +278,7 @@ jobs:
           CLI_TAG: ${{ needs.authorize.outputs.cli_tag }}
           DESKTOP_TAG: ${{ needs.authorize.outputs.desktop_tag }}
           DESKTOP_MANUAL_ONLY: ${{ inputs.desktop_manual_only || false }}
+          CLI_PUBLISH_FROZEN: ${{ vars.CLI_PUBLISH_FROZEN == 'true' }}
         run: bash scripts/verify-stable-release-artifacts.sh
       - name: Publish exact Stable release record
         env:

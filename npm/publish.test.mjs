@@ -6,7 +6,9 @@ import test from "node:test";
 
 import {
   compareDistTagVersions,
+  distTagForVersion,
   publishPackages,
+  stableDistTagFromEnv,
 } from "./publish.mjs";
 
 const candidateSha = "a".repeat(40);
@@ -97,7 +99,7 @@ function fixture(
     throw new Error(`unsupported fake npm invocation: ${args.join(" ")}`);
   }
 
-  function publish({ attempts = 2 } = {}) {
+  function publish({ attempts = 2, stableDistTag } = {}) {
     const options = {
       packages,
       version,
@@ -107,6 +109,7 @@ function fixture(
       log: () => {},
     };
     if (attempts !== null) options.attempts = attempts;
+    if (stableDistTag) options.stableDistTag = stableDistTag;
     return publishPackages(options);
   }
 
@@ -287,4 +290,43 @@ test("compares channel versions without integer truncation", () => {
     compareDistTagVersions("next", "1.5.0-rc.10", "1.5.0-rc.2"),
     1,
   );
+});
+
+test("a stable publish moves latest unless the frozen tag is selected", (t) => {
+  const normal = fixture(t, "1.6.0");
+  assert.deepEqual(normal.publish(), { distTag: "latest", version: "1.6.0" });
+  for (const { name } of normal.packages) {
+    assert.equal(normal.registry.get(name).tags.get("latest"), "1.6.0");
+  }
+
+  const frozen = fixture(t, "1.6.0");
+  for (const { name } of frozen.packages) frozen.registry.get(name).tags.set("latest", "2.0.0");
+  assert.deepEqual(frozen.publish({ stableDistTag: "legacy-v1" }), {
+    distTag: "legacy-v1",
+    version: "1.6.0",
+  });
+  for (const { name } of frozen.packages) {
+    const tags = frozen.registry.get(name).tags;
+    assert.equal(tags.get("latest"), "2.0.0");
+    assert.equal(tags.get("legacy-v1"), "1.6.0");
+    assert.equal(tags.has("legacy-v1-staging"), false);
+  }
+  const written = frozen.calls
+    .filter(({ args }) => args[0] === "publish" || (args[0] === "dist-tag" && args[1] === "add"))
+    .flatMap(({ args }) => args);
+  assert.equal(written.includes("latest"), false);
+});
+
+test("the frozen tag never leaves the stable version space", () => {
+  assert.equal(distTagForVersion("1.6.0", "legacy-v1"), "legacy-v1");
+  assert.equal(distTagForVersion("1.6.0-rc.1", "legacy-v1"), "next");
+  assert.throws(() => distTagForVersion("1.6.0", "v1"), /invalid stable npm dist-tag/);
+  assert.throws(() => compareDistTagVersions("legacy-v1", "1.6.0-rc.1", "1.5.0"), /does not belong/);
+});
+
+test("the stable dist-tag comes from the environment and defaults to latest", () => {
+  assert.equal(stableDistTagFromEnv({}), "latest");
+  assert.equal(stableDistTagFromEnv({ NPM_STABLE_DIST_TAG: "" }), "latest");
+  assert.equal(stableDistTagFromEnv({ NPM_STABLE_DIST_TAG: "legacy-v1" }), "legacy-v1");
+  assert.throws(() => stableDistTagFromEnv({ NPM_STABLE_DIST_TAG: "v1" }), /must be latest or legacy-v1/);
 });

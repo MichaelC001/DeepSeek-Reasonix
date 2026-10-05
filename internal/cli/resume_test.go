@@ -529,7 +529,18 @@ func TestResumeEntriesIncludeOtherProjects(t *testing.T) {
 	if err := os.MkdirAll(otherDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(config.ReasonixHomeDir(), "desktop-projects.json"),
+	// The process-wide test home is shared by every test in this binary; the
+	// saved project must not leak into later tests' cross-project resume rows.
+	projectsFile := filepath.Join(config.ReasonixHomeDir(), "desktop-projects.json")
+	previousProjects, projectsReadErr := os.ReadFile(projectsFile)
+	t.Cleanup(func() {
+		if projectsReadErr != nil {
+			os.Remove(projectsFile)
+			return
+		}
+		_ = os.WriteFile(projectsFile, previousProjects, 0o644)
+	})
+	if err := os.WriteFile(projectsFile,
 		[]byte(`{"projects":[{"root":`+strconv.Quote(filepath.ToSlash(otherRoot))+`}]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -221,6 +221,7 @@ jobs:
         if: ${{ inputs.candidate_artifact_name == '' }}
         env:
           VERSION_ARG: ${{ steps.ver.outputs.arg }}
+          NPM_STABLE_DIST_TAG: ${{ vars.CLI_PUBLISH_FROZEN == 'true' && 'legacy-v1' || 'latest' }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: node npm/build.mjs "$VERSION_ARG" --publish
       - name: Publish or recover prepared npm packages
@@ -228,10 +229,11 @@ jobs:
         env:
           VERSION: ${{ inputs.base_version }}
           APPROVED_SHA: ${{ inputs.approved_sha }}
+          NPM_STABLE_DIST_TAG: ${{ vars.CLI_PUBLISH_FROZEN == 'true' && 'legacy-v1' || 'latest' }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: node npm/publish-candidate.mjs "$RUNNER_TEMP/release-candidate/npm" "$VERSION" "$APPROVED_SHA"
       - name: Align legacy aliases with the official release
-        if: ${{ inputs.channel == 'stable' }}
+        if: ${{ inputs.channel == 'stable' && vars.CLI_PUBLISH_FROZEN != 'true' }}
         env:
           VERSION: ${{ inputs.base_version }}
           APPROVED_SHA: ${{ inputs.approved_sha }}

@@ -29,6 +29,12 @@ func (a *App) newBotBridge() *botBridgeHub {
 	})
 }
 
+func (a *App) stopBotBridge() {
+	if a.botBridge != nil {
+		a.botBridge.Close()
+	}
+}
+
 // bridgeSessions 枚举所有 live 会话：可见 tab 用完整 TabMeta，后台 detached
 // 会话补一份轻量快照（controller 仍存活，审批/问答仍可路由）。
 func (a *App) bridgeSessions() []bot.DesktopSessionInfo {

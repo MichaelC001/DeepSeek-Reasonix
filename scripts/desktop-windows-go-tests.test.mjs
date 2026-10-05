@@ -19,7 +19,7 @@ test("every test prefix, example and fuzz seed has exactly one execution owner",
 test("all historical releases have an independent bounded execution owner", () => {
   for (const [group, name] of Object.entries(historyTests)) {
     assert.deepEqual(owners(name), [group]);
-    assert.deepEqual(testArgs(group, true), ["test", "-race", "-run", `^${name}$`, "./..."]);
+    assert.deepEqual(testArgs(group, true), ["test", "-race", "-timeout=25m", "-run", `^${name}$`, "./..."]);
   }
   const source = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   const ordinary = source.match(/\n  desktop-go:\n([\s\S]*?)(?=\n  [a-z][a-z0-9-]*:|$)/)?.[1];

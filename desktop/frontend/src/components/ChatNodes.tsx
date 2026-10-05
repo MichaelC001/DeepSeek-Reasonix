@@ -232,30 +232,36 @@ function ChatAnswer({ node, loader, source, tabId, hostId }: { node: Extract<Cha
 function ChatReasoning({ node, loader, source, scroll }: { node: Extract<ChatNode, { kind: "reasoning" }>; loader: ChatContentLoader; source: ChatSource; scroll: ChatScrollController }) {
   const t = useT();
   const [result, setResult] = useState<{ item: unknown; text: string }>();
+  const [following, setFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const epoch = useRef(0);
   useEffect(() => { return () => { epoch.current++; }; }, []);
   const text = node.item.reasoning;
-  const full = result && (result.item === node.item || result.text === node.item.reasoning) ? result.text : undefined;
-  if (!text) return null;
-  const needsFull = full === undefined && (text.length > 8000 || loader.needsFullContent(node.item, "reasoning"));
+  const streaming = Boolean(node.item.streaming);
+  const settled = result && (result.item === node.item || result.text === node.item.reasoning) ? result.text : undefined;
+  const full = settled ?? (following ? text : undefined);
   const load = async () => {
     const ticket = ++epoch.current; setBusy(true); setError(false);
     try {
       const value = await loader.load(node.item, "reasoning");
       const current = source.getNodeSnapshot(node.key);
       if (ticket !== epoch.current || current?.kind !== "reasoning" || (current.item !== node.item && current.item.reasoning !== value)) throw new Error("Reasoning content changed; retry");
-      setResult({ item: current.item, text: value }); return value;
+      setResult({ item: current.item, text: value }); setFollowing(false); return value;
     }
     catch (error) { if (ticket === epoch.current) setError(true); throw error; }
     finally { if (ticket === epoch.current) setBusy(false); }
   };
+  useEffect(() => {
+    if (following && !streaming) void load().catch(() => {});
+  }, [following, streaming]);
+  if (!text) return null;
+  const needsFull = error || full === undefined && (text.length > 8000 || loader.needsFullContent(node.item, "reasoning"));
   return <div className="chat-reasoning"><ReasoningRow text={text} running={node.item.streaming} t={t} beforeToggle={scroll.beforeChange}
     duration={node.item.reasoningDurationMs != null ? `${(node.item.reasoningDurationMs / 1000).toFixed(1)}s` : undefined}>
     <div className="chat-reasoning__body">{full ?? text.slice(0, 8000)}
-    {needsFull && <button className="btn" disabled={busy} onClick={() => void load().catch(() => {})}>{t(error ? "chat.loadFailed" : busy ? "chat.loading" : "chat.loadFull")}</button>}
-    <CopyButton getText={() => full === undefined ? load() : full} label={t("chat.copyFull")} />
+    {needsFull && <button className="btn" disabled={busy} onClick={() => streaming ? setFollowing(true) : void load().catch(() => {})}>{t(error ? "chat.loadFailed" : busy ? "chat.loading" : "chat.loadFull")}</button>}
+    <CopyButton getText={() => full ?? (streaming ? text : load())} label={t("chat.copyFull")} />
   </div></ReasoningRow></div>;
 }
 

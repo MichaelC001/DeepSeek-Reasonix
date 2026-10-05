@@ -27,7 +27,8 @@ func (c *runtimeStatusSessionController) RuntimeStatus() control.RuntimeStatus {
 
 func waitForTabReady(t *testing.T, app *App, tabID string) *WorkspaceTab {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	// 15s：tab.Ready 实测随负载在 1.3s~8s+ 波动，5s 在高负载机器上是 flaky 死线。
+	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		app.mu.RLock()
 		tab := app.tabs[tabID]

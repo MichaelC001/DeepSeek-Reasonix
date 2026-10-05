@@ -90,7 +90,12 @@ func TestRetryAuthenticationPublishesAuthoritativeTabRefresh(t *testing.T) {
 		}
 		for _, item := range app.ListTabs() {
 			if item.ID == tab.ID && item.Authentication != nil && item.Authentication.Ready() {
-				refreshed <- true
+				// 非阻塞发送：该回调跑在共享的 asyncRuntimeEmitter.run 上，
+				// 阻塞发送会把后续所有 runtime 事件永久卡死。
+				select {
+				case refreshed <- true:
+				default:
+				}
 				return
 			}
 		}
@@ -102,5 +107,24 @@ func TestRetryAuthenticationPublishesAuthoritativeTabRefresh(t *testing.T) {
 	case <-refreshed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("retry did not publish a refresh of authoritative authentication state")
+	}
+
+	// 回归：缓冲已满时再次触发同一事件，emitter 泵必须继续排空而不是停在
+	// tabs.go 的 emit 调用点上（曾实证 chan send 卡死 7 分钟）。
+	for range 3 {
+		app.runtimeEvents.Emit(app.ctx, tabMetaRefreshEventChannel)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		app.runtimeEvents.mu.Lock()
+		busy := app.runtimeEvents.running
+		app.runtimeEvents.mu.Unlock()
+		if !busy {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("asyncRuntimeEmitter pump stayed blocked after repeated refresh events")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"reasonix/internal/permission"
 	"reasonix/internal/permissionpreset"
 )
 
@@ -104,13 +105,28 @@ func (c *Config) IgnoredProjectSettings() []IgnoredProjectSetting {
 
 func (c *Config) ignoreProject(key, value string, reason IgnoredProjectReason) {
 	c.projectScope.ignored = append(c.projectScope.ignored, IgnoredProjectSetting{Key: key, Value: value, Reason: reason})
-	c.addLoadWarning(fmt.Sprintf("project config sets %s = %q; ignored: %s", key, value, ignoredProjectReasonText[reason]))
+	// Legacy permission declarations remain inspectable but do not signal a
+	// broken configuration or grant authority merely by being in a checkout.
+	if key != "permissions.allow" && key != "sandbox.allow_write" && key != "sandbox.workspace_root" {
+		c.addLoadWarning(fmt.Sprintf("project config sets %s = %q; ignored: %s", key, value, ignoredProjectReasonText[reason]))
+	}
 }
 
 // narrow applies the project-only-narrows rule to everything the project merge
 // may have written, and gates the programs the project names.
 func (h heldScope) narrow(c *Config, root string) {
 	ws := workspaceDir(root)
+	// A checkout can only reuse authority held by the user, not create it.
+	grants := NewProjectGrantStore(reasonixHomeDir())
+	grant, err := grants.Grant(ws)
+	if err != nil {
+		c.addLoadWarning(fmt.Sprintf("project grants %s could not be read (%v); access may require approval", grants.Path(), err))
+	}
+	if ws == "" {
+		grant = ProjectGrant{}
+	}
+	h.permissions.Allow = appendMissing(h.permissions.Allow, grant.Allow...)
+	h.sandbox.AllowWrite = appendMissing(h.sandbox.AllowWrite, grant.AllowWrite...)
 	c.Desktop.Language, c.Desktop.Currency, c.Billing.DisplayCurrency = h.language, h.currency, h.displayCurrency
 	h.narrowSandbox(c, ws)
 	h.narrowPermissions(c)
@@ -129,9 +145,6 @@ func (h heldScope) narrow(c *Config, root string) {
 	}
 	c.Bot = h.bot
 	home := reasonixHomeDir()
-	grant := grantedToWorkspace(home, ws)
-	c.Permissions.Allow = appendMissing(c.Permissions.Allow, grant.Allow...)
-	c.Sandbox.AllowWrite = appendMissing(c.Sandbox.AllowWrite, grant.AllowWrite...)
 	store := NewProjectProgramStore(home)
 	h.gatePrograms(c, store, ws)
 	h.endpoints.gateEndpoints(c, store, ws)
@@ -148,9 +161,22 @@ func (h heldScope) narrowSandbox(c *Config, ws string) {
 		s.Network = false
 	}
 	s.ForbidRead = appendMissing(u.ForbidRead, s.ForbidRead...)
+	if s.WorkspaceRoot != u.WorkspaceRoot && !c.equivalentConfigPath(ws, s.WorkspaceRoot, u.WorkspaceRoot) {
+		if dir, ok := c.workspacePath(ws, s.WorkspaceRoot); ok {
+			s.WorkspaceRoot = dir
+		} else {
+			c.ignoreProject("sandbox.workspace_root", s.WorkspaceRoot, ProjectOutsideWorkspace)
+			s.WorkspaceRoot = u.WorkspaceRoot
+		}
+	} else {
+		s.WorkspaceRoot = u.WorkspaceRoot
+	}
 	allow := slices.Clone(u.AllowWrite)
+	// Only the admitted workspace root counts: a rejected project root cannot
+	// authorize its own extra directories, and a narrowed root stays narrow.
+	coveredRoots := append(slices.Clone(u.AllowWrite), s.WorkspaceRoot)
 	for _, entry := range s.AllowWrite {
-		if slices.Contains(u.AllowWrite, entry) {
+		if slices.Contains(u.AllowWrite, entry) || c.authorizedPath(ws, coveredRoots, entry) {
 			continue
 		}
 		if dir, ok := c.workspacePath(ws, entry); ok {
@@ -160,14 +186,6 @@ func (h heldScope) narrowSandbox(c *Config, ws string) {
 		}
 	}
 	s.AllowWrite = allow
-	if s.WorkspaceRoot != u.WorkspaceRoot {
-		if dir, ok := c.workspacePath(ws, s.WorkspaceRoot); ok {
-			s.WorkspaceRoot = dir
-		} else {
-			c.ignoreProject("sandbox.workspace_root", s.WorkspaceRoot, ProjectOutsideWorkspace)
-			s.WorkspaceRoot = u.WorkspaceRoot
-		}
-	}
 }
 
 func (h heldScope) narrowPermissions(c *Config) {
@@ -179,7 +197,7 @@ func (h heldScope) narrowPermissions(c *Config) {
 		c.ignoreProject("permissions.allow_dynamic_bash", "true", ProjectUserOnly)
 	}
 	for _, rule := range p.Allow {
-		if !slices.Contains(u.Allow, rule) {
+		if !slices.Contains(u.Allow, rule) && !slices.ContainsFunc(u.Allow, func(allowed string) bool { return permission.RuleCoversString(allowed, rule) }) {
 			c.ignoreProject("permissions.allow", rule, ProjectUserOnly)
 		}
 	}
@@ -198,20 +216,11 @@ func normalizedMode(mode string) string { return strings.ToLower(strings.TrimSpa
 // reports whether it stays inside ws. The resolved form is what gets stored, so
 // a link swapped in after this check cannot move what was approved.
 func (c *Config) workspacePath(ws, path string) (string, bool) {
-	path = strings.TrimSpace(c.expandSandboxPath(path))
-	if path == "" || ws == "" || strings.Contains(path, "${") {
+	resolved, ok := c.configPath(ws, path)
+	if !ok {
 		return "", false
 	}
-	if filepath.VolumeName(path) == "" && !os.IsPathSeparator(path[0]) {
-		path = filepath.Join(ws, path)
-	} else if abs, err := filepath.Abs(path); err == nil {
-		path = abs
-	}
-	resolved, err := evalSymlinksAllowMissing(path)
-	if err != nil {
-		return "", false
-	}
-	return resolved, pathWithinRoot(ws, resolved)
+	return resolved, configDirectoryCovers(ws, resolved)
 }
 
 // expandSandboxPath expands ${VAR} from the process environment alone: a

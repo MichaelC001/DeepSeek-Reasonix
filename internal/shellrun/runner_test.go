@@ -98,7 +98,12 @@ func TestDisplayName(t *testing.T) {
 }
 
 func TestRunForegroundSuccess(t *testing.T) {
-	argv, sh := shellArgv(t, "printf 'ok\\n'")
+	sh := sandbox.ResolveShell("auto", "", nil)
+	command := "printf 'ok\\n'"
+	if sh.Kind == sandbox.ShellPowerShell {
+		command = "Write-Output ok"
+	}
+	argv := shellArgvWith(sh, command)
 	res := RunForeground(context.Background(), Request{
 		Argv:      argv,
 		ShellKind: sh.Kind.String(),

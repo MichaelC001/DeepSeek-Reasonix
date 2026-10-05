@@ -127,13 +127,3 @@ func (s *ProjectGrantStore) load() (projectGrantFile, error) {
 	}
 	return file, nil
 }
-
-// grantedToWorkspace is best effort: an unreadable record grants nothing,
-// which costs a prompt rather than an approval nobody gave.
-func grantedToWorkspace(home, ws string) ProjectGrant {
-	if ws == "" {
-		return ProjectGrant{}
-	}
-	grant, _ := NewProjectGrantStore(home).Grant(ws)
-	return grant
-}

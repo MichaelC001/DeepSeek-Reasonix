@@ -55,8 +55,20 @@ function compareSemver(a, b) {
   return 0;
 }
 
+// npm rejects a tag that parses as a semver range, so `v1` is unusable here.
+export const FROZEN_STABLE_DIST_TAG = "legacy-v1";
+const STABLE_DIST_TAGS = new Set(["latest", FROZEN_STABLE_DIST_TAG]);
+
+export function stableDistTagFromEnv(env = process.env) {
+  const value = env.NPM_STABLE_DIST_TAG || "latest";
+  if (!STABLE_DIST_TAGS.has(value)) {
+    throw new Error(`NPM_STABLE_DIST_TAG must be latest or ${FROZEN_STABLE_DIST_TAG}, got: ${value}`);
+  }
+  return value;
+}
+
 function requireVersionForDistTag(distTag, version) {
-  if (distTag === "latest" && STABLE_RE.test(version)) return;
+  if (STABLE_DIST_TAGS.has(distTag) && STABLE_RE.test(version)) return;
   if (distTag === "canary" && CANARY_RE.test(version)) return;
   if (
     distTag === "next" &&
@@ -69,10 +81,13 @@ function requireVersionForDistTag(distTag, version) {
   throw new Error(`version ${version} does not belong to npm dist-tag ${distTag}`);
 }
 
-export function distTagForVersion(version) {
+export function distTagForVersion(version, stableDistTag = "latest") {
   if (CANARY_RE.test(version)) return "canary";
   if (SEMVER_RE.test(version) && version.includes("-")) return "next";
-  if (STABLE_RE.test(version)) return "latest";
+  if (STABLE_RE.test(version)) {
+    if (!STABLE_DIST_TAGS.has(stableDistTag)) throw new Error(`invalid stable npm dist-tag: ${stableDistTag}`);
+    return stableDistTag;
+  }
   throw new Error(`invalid npm release version: ${version}`);
 }
 
@@ -290,6 +305,7 @@ export function publishPackages({
   packages,
   version,
   candidateSha,
+  stableDistTag = stableDistTagFromEnv(),
   runner = defaultRunner,
   sleep = defaultSleep,
   // npm's public registry can lag a successful immutable publish by several
@@ -305,7 +321,7 @@ export function publishPackages({
   if (!CANDIDATE_SHA_RE.test(candidateSha)) {
     throw new Error(`invalid release candidate SHA: ${candidateSha}`);
   }
-  const distTag = distTagForVersion(version);
+  const distTag = distTagForVersion(version, stableDistTag);
   const stagingTag = `${distTag}-staging`;
   for (const entry of packages) {
     ensurePackage(runner, entry, version, candidateSha, stagingTag, log);

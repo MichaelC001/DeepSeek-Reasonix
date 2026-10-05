@@ -12,6 +12,14 @@ delay="${VERIFY_DELAY_SECONDS:-10}"
 verify_pointers="${VERIFY_PUBLIC_POINTERS:-false}"
 operation="${RELEASE_OPERATION:-publish}"
 ledger_output="${RELEASE_LEDGER_OUTPUT:-}"
+# A frozen 1.x line publishes npm under the legacy-v1 dist-tag and leaves the
+# latest tag, the Homebrew cask and the CLI pointers to the line that owns them.
+frozen=false
+npm_tag=latest
+if [ "${CLI_PUBLISH_FROZEN:-}" = "true" ]; then
+	frozen=true
+	npm_tag=legacy-v1
+fi
 
 if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
 	echo "::error::RELEASE_VERSION must be stable semver, got: $version" >&2
@@ -50,15 +58,17 @@ trap cleanup EXIT
 verify_pointers() {
 	local manifest="$1"
 	local cask="$tmp_dir/reasonix.rb"
-	local homebrew_version
+	local homebrew_version=frozen
 	jq -e --arg version "v$version" '
 		.version == $version and
 		([.platforms[], (.native_packages // {})[], (.downloads // {})[]] |
 		 all(.url | type == "string" and startswith("https://dl.reasonix.io/desktop-" + $version + "/")))
 	' "$manifest" >/dev/null
-	gh api -H 'Accept: application/vnd.github.raw' \
-		repos/esengine/homebrew-reasonix/contents/Casks/reasonix.rb >"$cask"
-	homebrew_version="$(sed -nE "s/^[[:space:]]*version ['\"]([^'\"]+)['\"].*/\1/p" "$cask" | head -n 1)"
+	if [ "$frozen" != "true" ]; then
+		gh api -H 'Accept: application/vnd.github.raw' \
+			repos/esengine/homebrew-reasonix/contents/Casks/reasonix.rb >"$cask"
+		homebrew_version="$(sed -nE "s/^[[:space:]]*version ['\"]([^'\"]+)['\"].*/\1/p" "$cask" | head -n 1)"
+	fi
 	node "$script_dir/release-publication-ledger.mjs" pointers "$version" "$cli_sha" "$operation" \
 		"$manifest" "$homebrew_version" "$tmp_dir/pointer-ledger.json"
 }
@@ -117,19 +127,19 @@ for attempt in $(seq 1 "$attempts"); do
 	for index in "${!npm_names[@]}"; do
 		package="${npm_names[$index]}"
 		raw="$tmp_dir/npm/$index.raw.json"
-		if ! npm view "$package@$version" name version reasonixCandidateSha gitHead dist.integrity dist-tags.latest --json >"$raw" 2>/dev/null; then
+		if ! npm view "$package@$version" name version reasonixCandidateSha gitHead dist.integrity "dist-tags.$npm_tag" --json >"$raw" 2>/dev/null; then
 			visible=false
 			continue
 		fi
-		jq --arg name "$package" '
+		jq --arg name "$package" --arg tag "$npm_tag" '
+			(."dist-tags.\($tag)" // ."dist-tags"[$tag]) as $tagged |
 			{
 				name: (.name // $name),
 				version,
 				reasonixCandidateSha,
 				gitHead,
-				integrity: (."dist.integrity" // .dist.integrity),
-				latest: (."dist-tags.latest" // ."dist-tags".latest)
-			}
+				integrity: (."dist.integrity" // .dist.integrity)
+			} + (if $tag == "latest" then {latest: $tagged} else {distTag: $tag, distTagVersion: $tagged} end)
 		' "$raw" >"$tmp_dir/npm/$index.json"
 		jq -e --arg name "$package" --arg version "$version" --arg sha "$cli_sha" '
 			.name == $name and .version == $version and
@@ -137,7 +147,7 @@ for attempt in $(seq 1 "$attempts"); do
 			 (.gitHead == null or .gitHead == $sha) and
 			 ((.reasonixCandidateSha // .gitHead) == $sha)) and
 			(.integrity | type == "string" and length > 0) and
-			(.latest | type == "string" and length > 0)
+			((.latest // .distTagVersion) | type == "string" and length > 0)
 		' "$tmp_dir/npm/$index.json" >/dev/null || {
 			echo "::error::npm package identity differs from the release candidate: $package@$version" >&2
 			exit 1
