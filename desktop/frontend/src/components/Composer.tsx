@@ -12,6 +12,7 @@ import { ArrowRight, ArrowUp, Brain, Check, CornerDownRight, Eye, FileText, Fold
 import { asArray } from "../lib/array";
 import { filterAtMatches } from "../lib/atMatches";
 import { DedupIndex, sha256 } from "../lib/attachDedup";
+import { splitOversizeAttachments } from "../lib/attachmentLimits";
 import { app, onFilesDropped } from "../lib/bridge";
 import { attachmentExt, attachmentName, baseName, formatAttachmentDisplayReference, hasImageAttachments, sortComposerAttachments, type Attachment } from "../lib/composerAttachments";
 import type { PastedBlock, PersistentComposerDraft, PersistentComposerTarget, WorkspaceReference } from "../lib/composerDraftTypes";
@@ -2486,16 +2487,15 @@ export function Composer({
     const sourceDraftKey = activeDraftKeyRef.current;
 		const target = persistentTargetsByDraftRef.current[sourceDraftKey];
 		if (target?.canEdit && !target.canEdit(target.draftId, target.generation)) return;
-		void trackPersistentTask(sourceDraftKey, attachImageFiles(files, sourceDraftKey)).catch((error) => {
-			console.warn("[composer] attachment image capability unavailable", error);
-			if (target?.onTaskError) target.onTaskError(target.draftId, target.generation, t("composer.attachImageFailed"));
-			else showToast(t("composer.attachImageFailed"), "warn");
-		});
-		void trackPersistentTask(sourceDraftKey, attachOtherFiles(files, sourceDraftKey)).catch((error) => {
-			console.warn("[composer] attachment file capability unavailable", error);
-			if (target?.onTaskError) target.onTaskError(target.draftId, target.generation, t("composer.attachFileFailed"));
-			else showToast(t("composer.attachFileFailed"), "warn");
-		});
+		const notify = (message: string) => target?.onTaskError ? target.onTaskError(target.draftId, target.generation, message) : showToast(message, "warn");
+		const { accepted, oversize } = splitOversizeAttachments(files);
+		for (const { file, limitMiB } of oversize) notify(t("composer.attachTooLarge", { name: file.name, limit: String(limitMiB) }));
+		for (const [attach, failure] of [[attachImageFiles, "composer.attachImageFailed"], [attachOtherFiles, "composer.attachFileFailed"]] as const) {
+			void trackPersistentTask(sourceDraftKey, attach(accepted, sourceDraftKey)).catch((error) => {
+				console.warn("[composer] attachment capability unavailable", error);
+				notify(t(failure));
+			});
+		}
   };
 
   const attachNativeClipboardImage = (notifyOnError: boolean, sourceDraftKey: string, owner = persistentTargetsByDraftRef.current[sourceDraftKey]) => {
