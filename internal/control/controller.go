@@ -4906,11 +4906,12 @@ func (c *Controller) ImageCapabilityChanged() bool {
 }
 
 // SessionAuthorizations snapshots this controller's same-session tool
-// grants ("Allow for this session") and Plan-mode read-only command trust,
+// grants ("Allow for this session"), external-folder refs, and Plan-mode trust,
 // for carrying into a replacement controller across a rebuild — see
 // RestoreSessionAuthorizations.
 func (c *Controller) SessionAuthorizations() SessionAuthorizations {
 	auth := c.approval.snapshotSessionAuthorizations()
+	auth.externalFolderRefs = c.snapshotExternalFolderRefs()
 	if c.writeAccess.roots != nil {
 		auth.WriteRoots = c.writeAccess.roots.SessionRoots()
 		if auth.WriteRoots == nil {
