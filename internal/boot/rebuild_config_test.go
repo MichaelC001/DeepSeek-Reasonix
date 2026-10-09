@@ -56,11 +56,8 @@ func TestRebuildFromCompactRatioRefreshesActiveSession(t *testing.T) {
 	if got := next.Controller.CompactRatio(); got != .80 {
 		t.Fatalf("live compact ratio = %v, want saved .80", got)
 	}
-	if next.ReusedController || next.Controller == ctrl {
-		t.Fatal("changed controller configuration reused the outgoing controller")
-	}
-	if err := control.ActivateControllerReplacement(ctrl, next.Controller); err != nil {
-		t.Fatal(err)
+	if !next.ReusedController || next.Controller != ctrl {
+		t.Fatal("compact ratio replaced the active controller")
 	}
 	if got, ok := next.Controller.SessionRef(); !ok || got != ref {
 		t.Fatalf("session identity = %+v, want %+v", got, ref)
@@ -80,10 +77,9 @@ func TestRebuildFromCompactRatioRefreshesActiveSession(t *testing.T) {
 		!reflect.DeepEqual(next.Controller.ToolContractEntries(), ctrl.ToolContractEntries()) {
 		t.Fatal("compact ratio rebuild changed the provider-visible cache prefix")
 	}
-	ctrl.ReleaseResources()
 	assertRebuildInbox(t, next.Controller, inboxID)
 	if err := next.Controller.Snapshot(); err != nil {
-		t.Fatalf("outgoing retirement closed the session writer: %v", err)
+		t.Fatalf("live update closed the session writer: %v", err)
 	}
 	unchanged, err := RebuildFrom(t.Context(), next, Options{WorkspaceRoot: root})
 	if err != nil {

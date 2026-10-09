@@ -78,6 +78,8 @@ type BuildResult struct {
 	SkillWatchService *skillwatch.Service
 	// configFingerprint is immutable build-time host configuration, outside the extension graph.
 	configFingerprint string
+	liveSettings      *liveRuntimeSettings
+	selection         runtimeSelection
 }
 
 // runtimeGeneration is the process-wide build generation counter. The first

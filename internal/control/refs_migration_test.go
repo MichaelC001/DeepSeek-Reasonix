@@ -1,8 +1,10 @@
 package control
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -74,6 +76,54 @@ func TestRestoreSessionAuthorizationsKeepsExistingExternalFolderBindings(t *test
 	replacement.RestoreSessionAuthorizations(SessionAuthorizations{})
 	assertMigratedExternalRoot(t, replacement, oldToken, oldDisplay)
 	assertMigratedExternalRoot(t, replacement, newToken, newDisplay)
+}
+
+func TestRestoreExternalFolderBindingsKeepsOriginalSymlinkTarget(t *testing.T) {
+	workspace := t.TempDir()
+	rootA, rootB := externalMigrationRoot(t), externalMigrationRoot(t)
+	alias := filepath.Join(t.TempDir(), "dropped-link")
+	if err := os.Symlink(rootA, alias); err != nil {
+		if errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ENOSYS) || errors.Is(err, syscall.ENOTSUP) {
+			t.Skipf("host does not permit symlinks: %v", err)
+		}
+		t.Fatal(err)
+	}
+	canonicalA, err := filepath.EvalSymlinks(rootA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalB, err := filepath.EvalSymlinks(rootB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := newOwnedTestController(t, Options{WorkspaceRoot: workspace})
+	token, display, err := original.RegisterExternalFolderRef(alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if display != filepath.ToSlash(canonicalA) {
+		t.Fatalf("registered root = %q, want original canonical target %q", display, canonicalA)
+	}
+	snapshot := original.SessionAuthorizations()
+	if err := os.Remove(alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(rootB, alias); err != nil {
+		t.Fatal(err)
+	}
+	registrar := &recordingExternalFolderToolRefs{}
+	replacement := newOwnedTestController(t, Options{WorkspaceRoot: workspace, ExternalFolderToolRefs: registrar})
+	replacement.RestoreSessionAuthorizations(snapshot)
+	assertMigratedExternalRoot(t, replacement, token, display)
+	if registrar.token != token || registrar.root != canonicalA {
+		t.Fatalf("restored read-tool registration = (%q, %q), want (%q, %q)", registrar.token, registrar.root, token, canonicalA)
+	}
+	if _, _, ok := replacement.ExternalFolderRefLocalPath(externalFolderRefToken(canonicalB)); ok {
+		t.Fatal("retargeting the dropped alias authorized the new target")
+	}
+	if refs := replacement.SessionAuthorizations().externalFolderRefs; len(refs) != 1 || refs[token] != canonicalA {
+		t.Fatalf("restored folder grants = %v, want only the original canonical root", refs)
+	}
 }
 
 func externalMigrationRoot(t *testing.T) string {

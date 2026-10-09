@@ -10,7 +10,7 @@ import (
 	"reasonix/internal/control"
 )
 
-func TestCompactRatioRebuildPreservesExternalFolderAccess(t *testing.T) {
+func TestFullRebuildPreservesExternalFolderAccess(t *testing.T) {
 	isolateConfigHome(t)
 	root := robustTempDir(t)
 	t.Chdir(root)
@@ -32,7 +32,7 @@ func TestCompactRatioRebuildPreservesExternalFolderAccess(t *testing.T) {
 	assertExternalFolderAccess(t, current, token, external, outside)
 	for _, ratio := range []float64{.80, .75} {
 		writeCompactRatio(t, config.UserConfigPath(), ratio)
-		next, err := RebuildFrom(t.Context(), current, Options{WorkspaceRoot: root})
+		next, err := RebuildFrom(t.Context(), current, Options{WorkspaceRoot: root, RuntimeReload: RuntimeReload{ForceFullRebuild: true}})
 		if err != nil {
 			t.Fatal(err)
 		}
