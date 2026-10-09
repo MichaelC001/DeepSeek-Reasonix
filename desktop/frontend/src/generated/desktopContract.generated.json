@@ -27281,6 +27281,13 @@
           }
         },
         {
+          "name": "workDurationMs",
+          "optional": true,
+          "type": {
+            "kind": "integer"
+          }
+        },
+        {
           "name": "blockedReason",
           "optional": true,
           "type": {
