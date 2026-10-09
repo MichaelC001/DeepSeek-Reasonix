@@ -2,7 +2,9 @@ package control
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"time"
 
 	"reasonix/internal/agent"
 	"reasonix/internal/provider"
@@ -71,7 +73,7 @@ func (c *Controller) SystemPrompt() string {
 // reads the sidecar. StagePinnedContext only mutates Agent host state; the
 // revision is appended atomically with the real user message after
 // agent.before_start accepts the turn.
-func (c *Controller) runModelTurn(ctx context.Context, input string) error {
+func (c *Controller) runModelTurn(ctx context.Context, input string) (runErr error) {
 	if c == nil || c.runner == nil {
 		return nil
 	}
@@ -92,5 +94,11 @@ func (c *Controller) runModelTurn(ctx context.Context, input string) error {
 			return err
 		}
 	}
+	work := c.beginGoalWork()
+	defer func() {
+		if workErr := c.finishGoalWork(work, time.Now()); workErr != nil {
+			runErr = errors.Join(runErr, workErr)
+		}
+	}()
 	return c.runner.Run(ctx, input)
 }
