@@ -17,8 +17,8 @@ import (
 
 // tryRebuildSubgraph patches narrow plans without BuildRuntime (fail-atomic).
 // Callers must skip Close when BuildResult.ReusedController is set.
-func tryRebuildSubgraph(ctx context.Context, old *control.Controller, previous *BuildResult, opts Options, m runtimeMigration) (res *BuildResult, handled bool, err error) {
-	if previous == nil || previous.Snapshot == nil || old == nil {
+func tryRebuildSubgraph(ctx context.Context, old *control.Controller, previous *BuildResult, opts Options) (res *BuildResult, handled bool, err error) {
+	if previous == nil || previous.Snapshot == nil || old == nil || !canReuseRuntimeConfiguration(previous, opts) {
 		return nil, false, nil
 	}
 	start := time.Now()
@@ -73,6 +73,7 @@ func tryRebuildSubgraph(ctx context.Context, old *control.Controller, previous *
 		SkillWatchService:    previous.SkillWatchService,
 		Plan:                 plan,
 		ReusedController:     true,
+		configFingerprint:    previous.configFingerprint,
 	}
 	session := protocol.SessionContext{
 		SessionID:     controllerSessionID(previous.Controller),
@@ -125,7 +126,6 @@ func tryRebuildSubgraph(ctx context.Context, old *control.Controller, previous *
 		return fail(err)
 	}
 
-	_ = m
 	attachPlanAndStatus(res, from, to, opts.Generation, previous.Snapshot)
 
 	if prevGen := previous.Snapshot.Generation(); prevGen != 0 && prevGen != gen {

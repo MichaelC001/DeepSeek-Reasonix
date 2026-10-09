@@ -76,6 +76,8 @@ type BuildResult struct {
 	ReusedController bool
 	// SkillWatchService exposes content-free resource counters to doctor/UI.
 	SkillWatchService *skillwatch.Service
+	// configFingerprint is immutable build-time host configuration, outside the extension graph.
+	configFingerprint string
 }
 
 // runtimeGeneration is the process-wide build generation counter. The first

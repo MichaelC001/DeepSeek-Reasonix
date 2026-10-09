@@ -2082,7 +2082,7 @@ func build(ctx context.Context, opts Options) (*BuildResult, error) {
 	}
 	skillsOwned = true
 	backgroundOwned = true
-	return finalizeBuildResult(&BuildResult{Controller: ctrl, Snapshot: snap, Runtime: runtimeSet, Owner: owner, Extensions: extensionMgr, Dispatcher: extensionDispatcher, ExtensionUI: extUIHub, ProviderResolver: providerResolver, BaseProviderResolver: baseResolver, Assembly: assembly, SkillWatchService: skillWatchService}, !opts.deferPublish), nil
+	return finalizeBuildResult(withRuntimeConfiguration(&BuildResult{Controller: ctrl, Snapshot: snap, Runtime: runtimeSet, Owner: owner, Extensions: extensionMgr, Dispatcher: extensionDispatcher, ExtensionUI: extUIHub, ProviderResolver: providerResolver, BaseProviderResolver: baseResolver, Assembly: assembly, SkillWatchService: skillWatchService}, cfg), !opts.deferPublish), nil
 }
 
 // effectivePlannerModel centralizes planner precedence. Every role setting
