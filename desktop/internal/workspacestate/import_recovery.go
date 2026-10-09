@@ -3,6 +3,7 @@ package workspacestate
 import (
 	"context"
 	"slices"
+	"strings"
 )
 
 // SettleImportedWorkspaceConflict retires only the workspace-conflict report
@@ -27,10 +28,24 @@ func (s *Store) SettleImportedWorkspaceConflict(ctx context.Context, sourceKey, 
 		keys := state.SourceKeys(mapping.SourceKey)
 		for id, entry := range state.RecoveryEntries {
 			if entry.Status != "pending" || entry.Reason != "workspace_conflict" || entry.Format != mapping.Format ||
-				!slices.Contains(keys, entry.SourceKey) || entry.HeadID != mapping.HeadID || entry.Fingerprint != fingerprint {
+				entry.HeadID != mapping.HeadID || entry.Fingerprint != fingerprint {
 				continue
 			}
-			owner, exists, err := state.ResolveSource(entry.SourceKey)
+			key := entry.SourceKey
+			if !slices.Contains(keys, key) {
+				// Reviewed imports retain a separate mapping, but failures are
+				// recorded against the base source. Resolve only this exact
+				// reviewed version, never the base's older adoption.
+				_, version, reviewed := strings.Cut(mapping.SourceKey, ":review:")
+				if !reviewed || version != fingerprint {
+					continue
+				}
+				key += ":review:" + fingerprint
+				if !slices.Contains(keys, key) {
+					continue
+				}
+			}
+			owner, exists, err := state.ResolveSource(key)
 			if err != nil || !exists || owner.SessionID != sessionID || owner.WorkspaceID != mapping.WorkspaceID || owner.Fingerprint != fingerprint {
 				continue
 			}
