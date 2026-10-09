@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -81,3 +82,11 @@ func (c *Controller) finishGoalWork(span *goalWorkSpan, ended time.Time) error {
 }
 
 var errStaleGoalWork = errors.New("goal work belongs to a retired activity")
+
+// recordGoalWork keeps observational persistence failures out of the Run result.
+// The failed candidate stays unpublished; core turn durability is unchanged.
+func (c *Controller) recordGoalWork(span *goalWorkSpan, ended time.Time) {
+	if err := c.finishGoalWork(span, ended); err != nil {
+		slog.Warn("controller: persist goal work duration", "err", err)
+	}
+}

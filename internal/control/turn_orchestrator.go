@@ -141,11 +141,7 @@ func (o *turnOrchestrator) runSubagentSkillTurns(ctx context.Context, skills []s
 	}
 
 	work := c.beginGoalWork()
-	defer func() {
-		if workErr := c.finishGoalWork(work, time.Now()); workErr != nil {
-			err = errors.Join(err, workErr)
-		}
-	}()
+	defer func() { c.recordGoalWork(work, time.Now()) }()
 	for _, sk := range skills {
 		sk = c.skills.prepare(sk)
 		callID := fmt.Sprintf("slash-skill-%d", c.slashSkillSeq.Add(1))

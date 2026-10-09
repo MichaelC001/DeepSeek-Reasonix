@@ -62,3 +62,29 @@ func TestWorkDurationRejectsStaleRefAndSaturates(t *testing.T) {
 		t.Fatalf("duration overflow = %d", got)
 	}
 }
+
+func TestWorkDurationDoesNotChangeGoalPrompts(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		activation Activation
+		prompt     func(View) (string, error)
+	}{
+		{"continuation", ActivationArmed, ContinuationPrompt}, {"recovery", ActivationDisarmed, RecoveryPrompt},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			view := View{Snapshot: Snapshot{ID: "goal", Revision: 1, Objective: "ship", Phase: PhaseActive}, Activation: tc.activation}
+			before, err := tc.prompt(view)
+			if err != nil {
+				t.Fatal(err)
+			}
+			view.WorkDurationMs = 123456
+			after, err := tc.prompt(view)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if before != after || strings.Contains(after, "workDurationMs") {
+				t.Fatalf("duration changed %s prompt", tc.name)
+			}
+		})
+	}
+}

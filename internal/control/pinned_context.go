@@ -2,7 +2,6 @@ package control
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"time"
 
@@ -73,7 +72,7 @@ func (c *Controller) SystemPrompt() string {
 // reads the sidecar. StagePinnedContext only mutates Agent host state; the
 // revision is appended atomically with the real user message after
 // agent.before_start accepts the turn.
-func (c *Controller) runModelTurn(ctx context.Context, input string) (runErr error) {
+func (c *Controller) runModelTurn(ctx context.Context, input string) error {
 	if c == nil || c.runner == nil {
 		return nil
 	}
@@ -95,10 +94,6 @@ func (c *Controller) runModelTurn(ctx context.Context, input string) (runErr err
 		}
 	}
 	work := c.beginGoalWork()
-	defer func() {
-		if workErr := c.finishGoalWork(work, time.Now()); workErr != nil {
-			runErr = errors.Join(runErr, workErr)
-		}
-	}()
+	defer func() { c.recordGoalWork(work, time.Now()) }()
 	return c.runner.Run(ctx, input)
 }
