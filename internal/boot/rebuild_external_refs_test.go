@@ -2,6 +2,7 @@ package boot
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,6 +12,16 @@ import (
 )
 
 func TestFullRebuildPreservesExternalFolderAccess(t *testing.T) {
+	for _, useAlias := range []bool{false, true} {
+		name := "native-path"
+		if useAlias {
+			name = "symlink-alias"
+		}
+		t.Run(name, func(t *testing.T) { testFullRebuildExternalFolderAccess(t, useAlias) })
+	}
+}
+
+func testFullRebuildExternalFolderAccess(t *testing.T, useAlias bool) {
 	isolateConfigHome(t)
 	root := robustTempDir(t)
 	t.Chdir(root)
@@ -18,6 +29,13 @@ func TestFullRebuildPreservesExternalFolderAccess(t *testing.T) {
 	writeCompactRatio(t, config.UserConfigPath(), .85)
 	external := robustTempDir(t)
 	writeFile(t, external, "sub/allowed.txt", "external content")
+	if useAlias {
+		alias := filepath.Join(robustTempDir(t), "external-alias")
+		if err := os.Symlink(external, alias); err != nil {
+			t.Skipf("symlink fixture unavailable: %v", err)
+		}
+		external = alias
+	}
 	outside := robustTempDir(t)
 	writeFile(t, outside, "secret.txt", "unregistered content")
 	current, err := BuildRuntime(t.Context(), withTestSession(t, Options{WorkspaceRoot: root}))
@@ -53,8 +71,12 @@ func assertExternalFolderAccess(t *testing.T, result *BuildResult, token, extern
 	t.Helper()
 	ctrl := result.Controller
 	for _, suffix := range []string{"", "/sub/allowed.txt"} {
-		if path, _, ok := ctrl.ExternalFolderRefLocalPath(token + suffix); !ok || path != filepath.Join(external, filepath.FromSlash(suffix)) {
-			t.Errorf("original token %q lost: path=%q, ok=%v", token+suffix, path, ok)
+		expected, err := filepath.EvalSymlinks(filepath.Join(external, filepath.FromSlash(suffix)))
+		if err != nil {
+			t.Fatalf("resolve expected external path: %v", err)
+		}
+		if path, _, ok := ctrl.ExternalFolderRefLocalPath(token + suffix); !ok || path != expected {
+			t.Errorf("original token %q lost: path=%q, want=%q, ok=%v", token+suffix, path, expected, ok)
 		}
 	}
 	block, errs := ctrl.ResolveScopedRefs(t.Context(), "read @"+token+"/sub/allowed.txt")
