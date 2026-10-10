@@ -2890,7 +2890,7 @@ func (c *Controller) GoalRuntime() GoalRuntimeView {
 		used, requests, tokenLimit, extensions := c.goalTokensUsed, c.goalRequestsUsed, c.goalTokenLimit, c.goalBudgetExtensions
 		c.goalResourceMu.Unlock()
 		return GoalRuntimeView{TurnsUsed: int(view.RoundsStarted), TurnsLimit: limit, TokensUsed: used,
-			RequestsUsed: requests, TokensLimit: tokenLimit, StopCause: view.StopReason, BudgetExtensions: extensions}
+			RequestsUsed: requests, WorkDurationMs: view.WorkDurationMs, TokensLimit: tokenLimit, StopCause: view.StopReason, BudgetExtensions: extensions}
 	}
 	return c.goals.runtimeView()
 }
