@@ -11,8 +11,8 @@ import (
 	"testing"
 )
 
-// reporterState has the shape from issue 11710: one source file registered
-// under three keys by three spellings of its path, owned by two sessions.
+// reporterState registers one source file under three keys by three spellings
+// of its path, owned by two sessions.
 func reporterState(t *testing.T, liveSecond bool) (State, string, func(string) string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -90,5 +90,20 @@ func TestDuplicateSourceMappingsStayAmbiguousWithoutOneLiveOwner(t *testing.T) {
 	none.SessionStates["kept"] = SessionState{Lifecycle: Archived}
 	if _, found, err := none.ResolveSource(key("")); found || !errors.Is(err, ErrMutationConflict) {
 		t.Fatalf("no live owner: found=%v err=%v", found, err)
+	}
+}
+
+func TestDuplicateSourceSettlementLeavesRetiredReceiptsAddressable(t *testing.T) {
+	state, _, key := reporterState(t, false)
+	mapping, _, _ := state.ResolveSource(key(""))
+	if mapping.SessionID == "duplicate" {
+		t.Fatal("lookup by alias resolved to the retired copy")
+	}
+	retired, found, err := state.ResolveSource("legacy-main")
+	if err != nil || !found || retired.SessionID != "duplicate" || retired.HeadID != "main" {
+		t.Fatalf("exact durable key resolved %+v found=%v err=%v", retired, found, err)
+	}
+	if mapping.HeadID == retired.HeadID {
+		t.Fatal("alias lookup returned the retired copy's head, so head-checked callers would act on it")
 	}
 }
