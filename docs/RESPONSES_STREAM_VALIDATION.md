@@ -15,9 +15,17 @@ A clean completion must not silently lose a tool call:
   arguments are still interpreted by the existing tool-validation layer; the
   stream guard does not repair or parse their JSON contents.
 
+The two causes have stable Go identities: `responses.ErrInvalidFunctionCall`
+and `responses.ErrUnfinishedFunctionCall`; callers can use `errors.Is` through
+wrapping rather than matching message text. This intentionally rejects a
+no-argument tool whose terminal item omits `arguments` (the accepted test
+control supplies the string `"{}"`)
+and a terminal call still marked `in_progress` in `response.completed`.
+
 These protocol errors are not automatic retry signals. The Agent keeps the
 failed attempt out of committed model history and does not execute its client
 function calls. Already completed work from earlier attempts is unaffected.
+The returned error exposes its cause to the user-facing caller, not the model.
 Errors contain no tool arguments or provider payloads.
 
 Explicit `response.incomplete` output limits retain their truncation warning

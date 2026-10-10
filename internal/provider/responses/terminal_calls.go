@@ -9,6 +9,12 @@ import (
 	"reasonix/internal/provider"
 )
 
+// ErrInvalidFunctionCall identifies a malformed function call in completed output.
+var ErrInvalidFunctionCall = errors.New("responses: completed response contains an invalid function call")
+
+// ErrUnfinishedFunctionCall identifies a stream that ended with a pending call.
+var ErrUnfinishedFunctionCall = errors.New("responses: stream ended with an unfinished function call")
+
 // Terminal failures invalidate the whole speculative attempt. Never execute a
 // readable neighbor while silently dropping a malformed function-call item.
 func checkTerminalCalls(ctx context.Context, out chan<- provider.Chunk, response *sseResponse, calls map[string]*streamedCall) bool {
@@ -31,7 +37,7 @@ func terminalCallsError(response *sseResponse, calls map[string]*streamedCall) e
 			}
 			var item sseItem
 			if (len(envelope.Arguments) == 0 || envelope.Arguments[0] != '"') || json.Unmarshal(raw, &item) != nil || item.CallID == "" || item.Name == "" || (item.Status != "" && item.Status != "completed") {
-				return errors.New("responses: completed response contains an invalid function call")
+				return ErrInvalidFunctionCall
 			}
 		}
 	}
@@ -45,7 +51,7 @@ func terminalCallsError(response *sseResponse, calls map[string]*streamedCall) e
 		// Unidentified deltas may be recovered by the terminal output under a new
 		// item ID; they do not establish an independent executable call obligation.
 		if !call.completed && !closed[call.id] && (call.announced || call.name != "" || ((call.argChars > 0 || call.arguments != "") && len(closed) == 0)) {
-			return errors.New("responses: stream ended with an unfinished function call")
+			return ErrUnfinishedFunctionCall
 		}
 	}
 	return nil

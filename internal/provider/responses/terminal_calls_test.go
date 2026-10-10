@@ -3,6 +3,8 @@ package responses
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -16,6 +18,7 @@ func TestTerminalCallsRejectUnsafeCompletion(t *testing.T) {
 		{"arguments missing", `{"type":"function_call","call_id":"call_1","name":"echo"}`},
 		{"missing call id", `{"type":"function_call","name":"echo","arguments":"{}"}`},
 		{"missing name", `{"type":"function_call","call_id":"call_1","arguments":"{}"}`},
+		{"in_progress item at completed terminal", `{"type":"function_call","call_id":"call_1","name":"echo","status":"in_progress","arguments":"{}"}`},
 		{"incomplete item at completed terminal", `{"type":"function_call","call_id":"call_1","name":"echo","status":"incomplete","arguments":"{}"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -25,6 +28,12 @@ func TestTerminalCallsRejectUnsafeCompletion(t *testing.T) {
 				switch chunk.Type {
 				case provider.ChunkError:
 					failed = true
+					if !errors.Is(chunk.Err, ErrInvalidFunctionCall) || !errors.Is(fmt.Errorf("consumer: %w", chunk.Err), ErrInvalidFunctionCall) {
+						t.Errorf("invalid-call identity lost: %v", chunk.Err)
+					}
+					if errors.Is(chunk.Err, ErrUnfinishedFunctionCall) {
+						t.Error("protocol causes must stay distinct")
+					}
 					if provider.IsStreamInterrupted(chunk.Err) || provider.ClassifyRecovery(chunk.Err).Retryable {
 						t.Errorf("protocol error became retryable: %v", chunk.Err)
 					}
@@ -107,6 +116,12 @@ func TestTerminalCallsRejectArgumentsDoneWithoutIdentity(t *testing.T) {
 		for _, chunk := range chunksOf(t, `{"type":"response.function_call_arguments.done","item_id":"fc_1","arguments":"{}","name":"echo"}`, terminal) {
 			if chunk.Type == provider.ChunkError {
 				failed = true
+				if !errors.Is(chunk.Err, ErrUnfinishedFunctionCall) || !errors.Is(fmt.Errorf("consumer: %w", chunk.Err), ErrUnfinishedFunctionCall) {
+					t.Errorf("unfinished-call identity lost: %v", chunk.Err)
+				}
+				if errors.Is(chunk.Err, ErrInvalidFunctionCall) {
+					t.Error("protocol causes must stay distinct")
+				}
 			}
 			if chunk.Type == provider.ChunkDone {
 				t.Error("unnamed call silently completed")
